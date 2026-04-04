@@ -1,0 +1,22 @@
+{
+  "name": "music-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "express": "^4.17.1",
+    "multer": "^1.4.5-lts.2",
+    "sqlite3": "^5.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.0",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "mocha",
+    "cap:copy": "npx cap copy",
+    "cap:open:android": "npx cap open android"
+  }
+}

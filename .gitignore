@@ -1,0 +1,7 @@
+node_modules/
+uploads/
+music.db
+android/
+.env
+.DS_Store
+npm-debug.log

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#121212">
+    <link rel="manifest" href="manifest.json">
+    <title>Musicify</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>Musicify</h1>
+                <p>Upload, browse, and play your tracks.</p>
+            </div>
+
+            <div class="upload-panel card">
+                <h2>Upload Track</h2>
+                <input type="file" id="musicFile" accept="audio/*">
+                <button onclick="uploadMusic()">Upload</button>
+            </div>
+
+            <div class="backend-card card">
+                <h2>Backend URL</h2>
+                <input type="url" id="backendUrl" placeholder="https://example.com" />
+                <button onclick="saveBackendUrl()">Set backend</button>
+                <p class="hint">Use this when the app is wrapped or deployed separately.</p>
+            </div>
+
+            <div class="player-card card">
+                <div class="player-header">
+                    <span>Now playing</span>
+                </div>
+                <audio id="audioPlayer" controls></audio>
+                <p id="playerStatus">No track selected</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="hero card">
+                <div class="hero-copy">
+                    <span class="eyebrow">Your Library</span>
+                    <h2>Stream your own music collection.</h2>
+                    <p>Upload tracks from your phone or computer and play them instantly using this sleek music interface.</p>
+                </div>
+                <div class="hero-actions">
+                    <button onclick="getMp3Files()">Refresh Tracks</button>
+                </div>
+            </div>
+
+            <section class="track-list card">
+                <div class="section-header">
+                    <h2>Saved Tracks</h2>
+                </div>
+                <ul id="mp3List" class="playlist"></ul>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
