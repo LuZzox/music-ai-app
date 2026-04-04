@@ -1,13 +1,25 @@
 Music App Backend
 
 This is the backend of a music app built using Node.js with Express and SQLite.
-The app allows users to add, retrieve, play, and stop MP3 files.
+The app allows users to upload MP3 files (stored directly in the database), manage a playback queue, and stream music.
 
 Features:
-- Add MP3 file to database
-- Retrieve list of all MP3 files
-- Play current MP3 file
+- Upload MP3 files (stored as BLOBs in SQLite database)
+- Retrieve list of all stored MP3 files
+- Manage playback queue (add files, view queue, play next)
+- Stream MP3 files directly from database
+- Automatic queue addition on upload
 - Stop playback
+
+API Endpoints:
+- POST /upload - Upload MP3 file (automatically adds to queue)
+- GET /mp3_files - List all stored MP3 files
+- GET /play/:id - Stream MP3 file by ID
+- POST /queue/:id - Add specific file to queue
+- GET /queue - Get current queue
+- GET /play-next - Play next file from queue
+- GET /current - Get current playing status
+- GET /stop - Stop playback
 
 Installation:
 1. Clone this repository
@@ -42,12 +54,10 @@ Railway deployment steps:
 3. Deploy the service and use the generated domain as the backend URL.
 
 Important:
+- MP3 files are stored directly in the SQLite database as BLOBs, avoiding file system issues.
 - The Android wrapper will load the front-end UI from the app bundle.
 - The backend must be deployed on a reachable server and the backend URL configured in the app.
 - With a remote backend, your phone app works even when your computer is off.
-
-Important:
-- The Android wrapper will load the front-end UI from the app bundle.
 - The backend must be deployed on a server and the backend URL configured in the app.
 
 API Endpoints:

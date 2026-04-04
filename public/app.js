@@ -63,6 +63,7 @@ function uploadMusic() {
         fileInput.value = '';
         setStatus(`Uploaded: ${data.fileName}`);
         getMp3Files();
+        getQueue();
     })
     .catch(error => {
         setStatus(`Upload error: ${error.message}`);
@@ -98,9 +99,21 @@ function getMp3Files() {
             playButton.textContent = 'Play';
             playButton.onclick = () => playMp3(mp3.id);
 
+            const queueButton = document.createElement('button');
+            queueButton.textContent = 'Queue';
+            queueButton.className = 'queue-button';
+            queueButton.onclick = () => addToQueue(mp3.id);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.className = 'delete-button';
+            deleteButton.onclick = () => deleteMp3(mp3.id);
+
             li.appendChild(thumb);
             li.appendChild(meta);
             li.appendChild(playButton);
+            li.appendChild(queueButton);
+            li.appendChild(deleteButton);
             list.appendChild(li);
         });
     })
@@ -111,19 +124,101 @@ function getMp3Files() {
 
 function playMp3(id) {
     fetch(resolveApiUrl(`/play/${id}`))
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            setStatus(`Play failed: ${data.error}`);
-            return;
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(body => {
+                throw new Error(body?.error || 'Play failed');
+            });
         }
+        return response.blob();
+    })
+    .then(blob => {
         const player = document.getElementById('audioPlayer');
-        player.src = data.url;
+        const url = URL.createObjectURL(blob);
+        player.src = url;
         player.play();
-        setStatus(`Playing: ${data.fileName}`);
+        setStatus(`Playing track ${id}`);
     })
     .catch(error => {
         setStatus(`Play error: ${error.message}`);
+    });
+}
+
+function addToQueue(id) {
+    fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST' })
+    .then(async response => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(body?.error || 'Queue failed');
+        }
+        setStatus(`Added track ${id} to queue`);
+        getQueue();
+    })
+    .catch(error => {
+        setStatus(`Queue error: ${error.message}`);
+    });
+}
+
+function getQueue() {
+    fetch(resolveApiUrl('/queue'))
+    .then(response => response.json())
+    .then(data => {
+        const queueList = document.getElementById('queueList');
+        queueList.innerHTML = '';
+        data.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'queue-item';
+            li.textContent = `${item.fileName} (Track ${item.id})`;
+            queueList.appendChild(li);
+        });
+    })
+    .catch(error => {
+        setStatus(`Queue load error: ${error.message}`);
+    });
+}
+
+function playNextFromQueue() {
+    fetch(resolveApiUrl('/play-next'))
+    .then(async response => {
+        const body = await response.json();
+        if (!response.ok) {
+            throw new Error(body?.error || 'Play next failed');
+        }
+        if (body.playing) {
+            playMp3(body.playing.id);
+            setStatus(`Playing next track ${body.playing.id}`);
+            getQueue();
+        } else {
+            setStatus(body.message || 'No next track');
+        }
+    })
+    .catch(error => {
+        setStatus(`Queue play error: ${error.message}`);
+    });
+}
+
+function deleteMp3(id) {
+    if (!confirm('Delete this track from your library?')) {
+        return;
+    }
+
+    fetch(resolveApiUrl(`/mp3_files/${id}`), {
+        method: 'DELETE'
+    })
+    .then(async response => {
+        if (!response.ok) {
+            const body = await response.json().catch(() => null);
+            throw new Error(body?.error || 'Delete failed');
+        }
+        return response.json();
+    })
+    .then(() => {
+        setStatus(`Deleted track ${id}`);
+        getMp3Files();
+        getQueue();
+    })
+    .catch(error => {
+        setStatus(`Delete error: ${error.message}`);
     });
 }
 
@@ -144,4 +239,5 @@ if ('serviceWorker' in navigator) {
 window.onload = () => {
     loadBackendUrl();
     getMp3Files();
+    getQueue();
 };

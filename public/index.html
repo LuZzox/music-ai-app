@@ -36,6 +36,13 @@
                 <audio id="audioPlayer" controls></audio>
                 <p id="playerStatus">No track selected</p>
             </div>
+            <div class="queue-card card">
+                <div class="player-header">
+                    <span>Playback queue</span>
+                </div>
+                <button onclick="playNextFromQueue()">Play next</button>
+                <ul id="queueList" class="queue-list"></ul>
+            </div>
         </aside>
 
         <main class="main-content">
