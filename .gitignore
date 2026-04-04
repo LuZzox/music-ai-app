@@ -5,3 +5,4 @@ android/
 .env
 .DS_Store
 npm-debug.log
+.venv/
