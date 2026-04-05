@@ -40,7 +40,11 @@
                 <div class="player-header">
                     <span>Playback queue</span>
                 </div>
-                <button onclick="playNextFromQueue()">Play next</button>
+                <div class="queue-controls">
+                    <button onclick="playPrevFromQueue()">Previous</button>
+                    <button onclick="shuffleQueue()">Shuffle</button>
+                    <button onclick="playNextFromQueue()">Next</button>
+                </div>
                 <ul id="queueList" class="queue-list"></ul>
             </div>
         </aside>

@@ -128,14 +128,52 @@ function getMp3Files() {
     });
 }
 
+let currentTrackId = null;
+
 function playMp3(id) {
     const player = document.getElementById('audioPlayer');
+    currentTrackId = id;
     player.src = resolveApiUrl(`/play/${id}`);
     player.load();
     player.play().catch(error => {
         setStatus(`Playback error: ${error.message}`);
     });
     setStatus(`Playing track ${id}`);
+}
+
+function playPrevFromQueue() {
+    fetch(resolveApiUrl('/play-prev'))
+    .then(async response => {
+        const body = await response.json();
+        if (!response.ok) {
+            throw new Error(body?.error || 'Play previous failed');
+        }
+        if (body.playing) {
+            playMp3(body.playing.id);
+            setStatus(`Playing previous track ${body.playing.id}`);
+            getQueue();
+        } else {
+            setStatus(body.message || 'No previous track');
+        }
+    })
+    .catch(error => {
+        setStatus(`Previous error: ${error.message}`);
+    });
+}
+
+function shuffleQueue() {
+    fetch(resolveApiUrl('/shuffle'), { method: 'POST' })
+    .then(async response => {
+        const body = await response.json();
+        if (!response.ok) {
+            throw new Error(body?.error || 'Shuffle failed');
+        }
+        setStatus('Queue shuffled');
+        getQueue();
+    })
+    .catch(error => {
+        setStatus(`Shuffle error: ${error.message}`);
+    });
 }
 
 function addToQueue(id) {
@@ -242,6 +280,10 @@ if ('serviceWorker' in navigator) {
 
 window.onload = () => {
     loadBackendUrl();
+    const player = document.getElementById('audioPlayer');
+    player.onended = () => {
+        playNextFromQueue();
+    };
     getMp3Files();
     getQueue();
 };
