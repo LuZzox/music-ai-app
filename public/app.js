@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE = '';
+const DEFAULT_API_BASE = 'https://music-ai-app.onrender.com';
 let API_BASE = DEFAULT_API_BASE;
 
 function setStatus(message) {
@@ -28,7 +28,9 @@ function loadBackendUrl() {
         document.getElementById('backendUrl').value = url;
         setStatus('Backend set to ' + url);
     } else {
-        setStatus('Using local backend');
+        API_BASE = DEFAULT_API_BASE;
+        document.getElementById('backendUrl').value = DEFAULT_API_BASE;
+        setStatus('Using Render backend: ' + DEFAULT_API_BASE);
     }
 }
 
@@ -109,11 +111,15 @@ function getMp3Files() {
             deleteButton.className = 'delete-button';
             deleteButton.onclick = () => deleteMp3(mp3.id);
 
+            const actions = document.createElement('div');
+            actions.className = 'track-actions';
+            actions.appendChild(playButton);
+            actions.appendChild(queueButton);
+            actions.appendChild(deleteButton);
+
             li.appendChild(thumb);
             li.appendChild(meta);
-            li.appendChild(playButton);
-            li.appendChild(queueButton);
-            li.appendChild(deleteButton);
+            li.appendChild(actions);
             list.appendChild(li);
         });
     })
@@ -123,25 +129,13 @@ function getMp3Files() {
 }
 
 function playMp3(id) {
-    fetch(resolveApiUrl(`/play/${id}`))
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(body => {
-                throw new Error(body?.error || 'Play failed');
-            });
-        }
-        return response.blob();
-    })
-    .then(blob => {
-        const player = document.getElementById('audioPlayer');
-        const url = URL.createObjectURL(blob);
-        player.src = url;
-        player.play();
-        setStatus(`Playing track ${id}`);
-    })
-    .catch(error => {
-        setStatus(`Play error: ${error.message}`);
+    const player = document.getElementById('audioPlayer');
+    player.src = resolveApiUrl(`/play/${id}`);
+    player.load();
+    player.play().catch(error => {
+        setStatus(`Playback error: ${error.message}`);
     });
+    setStatus(`Playing track ${id}`);
 }
 
 function addToQueue(id) {
