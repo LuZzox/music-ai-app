@@ -29,6 +29,15 @@
                 <p class="hint">Use this when the app is wrapped or deployed separately.</p>
             </div>
 
+            <div class="auth-card card">
+                <h2>Account</h2>
+                <div class="auth-actions">
+                    <button id="loginButton" onclick="loginWithGoogle()">Sign in with Google</button>
+                    <button id="logoutButton" onclick="logout()" style="display:none;">Logout</button>
+                </div>
+                <p id="authStatus">Please sign in to access your library.</p>
+            </div>
+
             <div class="player-card card">
                 <div class="player-header">
                     <span>Now playing</span>

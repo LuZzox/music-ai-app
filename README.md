@@ -41,6 +41,15 @@ Cloud deployment:
 2. Render is a good choice for simple deployments; use `render.yaml` already included in this repo.
 3. Another simple option is Railway or Heroku.
 
+Authentication setup:
+1. Create a Google OAuth client in the Google Cloud Console.
+2. Set the redirect URI to `https://your-domain.com/auth/google/callback`.
+3. Add the following environment variables to your deployment:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `GOOGLE_CALLBACK_URL` (e.g. `https://music-ai-app.onrender.com/auth/google/callback`)
+   - `SESSION_SECRET`
+
 Render deployment steps:
 1. Push your project to GitHub.
 2. Create a new Web Service on Render and connect your GitHub repo.

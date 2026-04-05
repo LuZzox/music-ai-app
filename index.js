@@ -1,4 +1,8 @@
 const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const SQLiteStore = require('connect-sqlite3')(session);
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const multer = require('multer');
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
@@ -10,6 +14,18 @@ const upload = multer({ storage });
 
 // Middleware
 app.use(express.json());
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'change-this-secret',
+  resave: false,
+  saveUninitialized: false,
+  store: new SQLiteStore({ db: 'sessions.sqlite', dir: './', table: 'sessions' }),
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax'
+  }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(express.static('public'));
 
 // Configure SQLite database connection
@@ -24,6 +40,15 @@ db.serialize(() => {
       file_data BLOB NOT NULL,
       file_hash TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY,
+      google_id TEXT UNIQUE,
+      display_name TEXT,
+      email TEXT
     );
   `);
 
@@ -94,6 +119,45 @@ class Player {
 const queue = new Queue();
 const player = new Player();
 
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser((id, done) => {
+  db.get('SELECT id, google_id, display_name, email FROM users WHERE id = ?', [id], (err, user) => {
+    done(err, user);
+  });
+});
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+}, (accessToken, refreshToken, profile, done) => {
+  const googleId = profile.id;
+  const displayName = profile.displayName || `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
+  const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+
+  db.get('SELECT id, google_id, display_name, email FROM users WHERE google_id = ?', [googleId], (err, user) => {
+    if (err) return done(err);
+    if (user) return done(null, user);
+
+    db.run('INSERT INTO users (google_id, display_name, email) VALUES (?, ?, ?)', [googleId, displayName, email], function (err) {
+      if (err) return done(err);
+      db.get('SELECT id, google_id, display_name, email FROM users WHERE id = ?', [this.lastID], (err, newUser) => {
+        done(err, newUser);
+      });
+    });
+  });
+}));
+
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ error: 'Unauthorized' });
+}
+
 // Define MusicManager class to manage MP3 files
 class MusicManager {
   constructor() {
@@ -111,8 +175,41 @@ class MusicManager {
 
 module.exports = { Mp3File, Queue, Player, MusicManager, app };
 
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/auth/google/callback', passport.authenticate('google', {
+  failureRedirect: '/login-failure'
+}), (req, res) => {
+  res.redirect('/');
+});
+
+app.get('/login-failure', (req, res) => {
+  res.status(401).send('<h1>Login failed</h1><p><a href="/">Return to Musicify</a></p>');
+});
+
+app.get('/auth/user', (req, res) => {
+  if (req.isAuthenticated()) {
+    return res.json({
+      authenticated: true,
+      user: {
+        id: req.user.id,
+        name: req.user.display_name,
+        email: req.user.email
+      }
+    });
+  }
+  res.json({ authenticated: false });
+});
+
+app.post('/auth/logout', (req, res) => {
+  req.logout(err => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // Define API routes
-app.get('/mp3_files', (req, res) => {
+app.get('/mp3_files', ensureAuthenticated, (req, res) => {
   db.all('SELECT id, file_name, created_at FROM mp3_files ORDER BY created_at DESC', (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
@@ -124,7 +221,7 @@ app.post('/mp3_files', (req, res) => {
   res.status(201).send(`MP3 file added: ${mp3File.fileName}`);
 });
 
-app.post('/upload', upload.single('music'), (req, res) => {
+app.post('/upload', ensureAuthenticated, upload.single('music'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -152,7 +249,7 @@ app.post('/upload', upload.single('music'), (req, res) => {
   });
 });
 
-app.delete('/mp3_files/:id', (req, res) => {
+app.delete('/mp3_files/:id', ensureAuthenticated, (req, res) => {
   const id = parseInt(req.params.id, 10);
   db.run('DELETE FROM mp3_files WHERE id = ?', [id], function (err) {
     if (err) {
@@ -166,7 +263,7 @@ app.delete('/mp3_files/:id', (req, res) => {
   });
 });
 
-app.get('/play/:id', (req, res) => {
+app.get('/play/:id', ensureAuthenticated, (req, res) => {
   const id = req.params.id;
   db.get('SELECT id, file_name, file_data FROM mp3_files WHERE id = ?', [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -177,12 +274,12 @@ app.get('/play/:id', (req, res) => {
   });
 });
 
-app.get('/stop', (req, res) => {
+app.get('/stop', ensureAuthenticated, (req, res) => {
   player.stopPlaying();
   res.send('Playback stopped');
 });
 
-app.post('/queue/:id', (req, res) => {
+app.post('/queue/:id', ensureAuthenticated, (req, res) => {
   const id = req.params.id;
   db.get('SELECT id, file_name FROM mp3_files WHERE id = ?', [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -193,7 +290,7 @@ app.post('/queue/:id', (req, res) => {
   });
 });
 
-app.get('/play-next', (req, res) => {
+app.get('/play-next', ensureAuthenticated, (req, res) => {
   const nextFile = queue.getNextMp3File();
   if (nextFile) {
     player.playMp3File(nextFile);
@@ -203,7 +300,7 @@ app.get('/play-next', (req, res) => {
   }
 });
 
-app.get('/queue', (req, res) => {
+app.get('/queue', ensureAuthenticated, (req, res) => {
   res.json(queue.mp3Files);
 });
 
