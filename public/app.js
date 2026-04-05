@@ -116,13 +116,11 @@ function handleLogout() {
 
 function showAuth() {
     document.getElementById('authPanel').style.display = 'flex';
-    document.getElementById('mainApp').style.display = 'none';
     document.getElementById('mainContent').style.display = 'none';
 }
 
 function showApp() {
     document.getElementById('authPanel').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'flex';
     document.getElementById('mainContent').style.display = 'block';
 }
 
