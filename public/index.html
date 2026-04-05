@@ -36,54 +36,16 @@
             </div>
         </div>
 
-        <aside class="sidebar" id="mainApp" style="display: none;">
-            <div class="brand">
-                <h1>musica</h1>
-                <p>Upload, browse, and play your tracks.</p>
-                <button id="logoutBtn" onclick="handleLogout()" style="margin-top: 10px; padding: 8px 16px; background: #ff6b6b; color: white; border: none; border-radius: 4px; cursor: pointer;">Log Out</button>
-            </div>
-
-            <div class="sidebar-group">
-                <div class="sidebar-section">
-                    <h2>Upload Track</h2>
-                    <input type="file" id="musicFile" accept="audio/*">
-                    <button onclick="uploadMusic()">Upload</button>
-                </div>
-
-                <div class="sidebar-section">
-                    <h2>Backend URL</h2>
-                    <input type="url" id="backendUrl" placeholder="https://example.com" />
-                    <button onclick="saveBackendUrl()">Set backend</button>
-                    <p class="hint">Use this when the app is wrapped or deployed separately.</p>
-                </div>
-            </div>
-
-            <div class="sidebar-group">
-                <div class="sidebar-section">
-                    <div class="player-header">
-                        <span>Now playing</span>
-                    </div>
-                    <audio id="audioPlayer" controls></audio>
-                    <p id="playerStatus">No track selected</p>
-                    <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
-                    <p id="loopStatus" class="loop-status">Loop disabled</p>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="player-header">
-                        <span>Playback queue</span>
-                    </div>
-                    <div class="queue-controls">
-                        <button onclick="playPrevFromQueue()">Previous</button>
-                        <button onclick="shuffleQueue()">Shuffle</button>
-                        <button onclick="playNextFromQueue()">Next</button>
-                    </div>
-                    <ul id="queueList" class="queue-list"></ul>
-                </div>
-            </div>
-        </aside>
 
         <main class="main-content" id="mainContent" style="display: none;">
+            <div class="page-header card">
+                <div class="brand">
+                    <h1>musica</h1>
+                    <p>Upload, browse, and play your tracks.</p>
+                </div>
+                <button id="logoutBtn" class="logout-button" onclick="handleLogout()">Log Out</button>
+            </div>
+
             <div class="hero card">
                 <div class="hero-copy">
                     <span class="eyebrow">Your Library</span>
@@ -95,12 +57,55 @@
                 </div>
             </div>
 
-            <section class="track-list card">
-                <div class="section-header">
-                    <h2>Saved Tracks</h2>
+            <div class="content-grid">
+                <div class="utility-column">
+                    <div class="sidebar-group card">
+                        <div class="sidebar-section">
+                            <h2>Upload Track</h2>
+                            <input type="file" id="musicFile" accept="audio/*">
+                            <button onclick="uploadMusic()">Upload</button>
+                        </div>
+
+                        <div class="sidebar-section">
+                            <h2>Backend URL</h2>
+                            <input type="url" id="backendUrl" placeholder="https://example.com" />
+                            <button onclick="saveBackendUrl()">Set backend</button>
+                            <p class="hint">Use this when the app is wrapped or deployed separately.</p>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-group card">
+                        <div class="sidebar-section">
+                            <div class="player-header">
+                                <span>Now playing</span>
+                            </div>
+                            <audio id="audioPlayer" controls></audio>
+                            <p id="playerStatus">No track selected</p>
+                            <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
+                            <p id="loopStatus" class="loop-status">Loop disabled</p>
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="player-header">
+                                <span>Playback queue</span>
+                            </div>
+                            <div class="queue-controls">
+                                <button onclick="playPrevFromQueue()">Previous</button>
+                                <button onclick="shuffleQueue()">Shuffle</button>
+                                <button onclick="playNextFromQueue()">Next</button>
+                            </div>
+                            <ul id="queueList" class="queue-list"></ul>
+                        </div>
+                    </div>
                 </div>
-                <ul id="mp3List" class="playlist"></ul>
-            </section>
+
+                <section class="track-list card">
+                    <div class="section-header">
+                        <h2>Saved Tracks</h2>
+                    </div>
+                    <ul id="mp3List" class="playlist"></ul>
+                </section>
+            </div>
         </main>
     </div>
 

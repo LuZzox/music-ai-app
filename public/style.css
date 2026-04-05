@@ -1,9 +1,7 @@
 body {
     margin: 0;
     font-family: 'Inter', system-ui, sans-serif;
-    background: radial-gradient(circle at top left, #2dbd6e 0%, transparent 28%),
-                radial-gradient(circle at bottom right, #1f1d2b 0%, transparent 35%),
-                #121212;
+    background: #080808;
     color: #f4f4f4;
     min-height: 100vh;
 }
@@ -17,39 +15,51 @@ button {
 }
 
 .app-shell {
-    display: grid;
-    grid-template-columns: 260px 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 24px;
     max-width: 1400px;
-    margin: 24px auto;
-    padding: 0 16px 24px;
+    margin: 0 auto;
+    padding: 24px;
+    min-height: 100vh;
 }
 
-.sidebar,
 .main-content {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 24px;
+    background: #111315;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
 }
 
 .card {
-    background: rgba(255, 255, 255, 0.06);
+    background: #111111;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 24px;
-    padding: 20px;
-    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(18px);
+    padding: 22px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(14px);
 }
 
 .brand h1 {
     margin: 0;
-    font-size: clamp(2rem, 2.5vw, 2.8rem);
-    letter-spacing: -0.02em;
+    font-size: clamp(2rem, 2.5vw, 2.6rem);
+    letter-spacing: -0.04em;
 }
 
 .brand p {
-    margin: 12px 0 0;
-    color: #b3b3b3;
+    margin: 10px 0 0;
+    color: #b4b4b4;
     line-height: 1.6;
 }
 
@@ -67,14 +77,15 @@ input[type='url'] {
     width: 100%;
     min-width: 0;
     padding: 14px 16px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.05);
     color: #f4f4f4;
     margin-bottom: 16px;
 }
 
-.backend-card .hint {
+.backend-card .hint,
+.sidebar-group .hint {
     margin: 10px 0 0;
     color: #9a9a9a;
     font-size: 0.95rem;
@@ -88,22 +99,41 @@ button {
     gap: 8px;
     border: none;
     border-radius: 999px;
-    background: linear-gradient(135deg, #1db954, #1dd268);
+    background: #1db954;
     color: #fff;
     cursor: pointer;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
     padding: 14px 20px;
 }
 
 button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 18px 30px rgba(29, 185, 84, 0.24);
+    box-shadow: 0 16px 28px rgba(29, 185, 84, 0.22);
+}
+
+button.secondary,
+button.logout-button {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e5e5e5;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+button.logout-button {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 999px;
+    margin-top: 12px;
+}
+
+button.secondary:hover,
+button.logout-button:hover {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .delete-button {
     background: rgba(255, 75, 75, 0.15);
     color: #ffb3b3;
-    border: 1px solid rgba(255, 75, 75, 0.35);
+    border: 1px solid rgba(255, 75, 75, 0.3);
 }
 
 .queue-button {
@@ -112,8 +142,29 @@ button:hover {
     border: 1px solid rgba(29, 185, 84, 0.3);
 }
 
-.queue-card {
-    min-height: 220px;
+.loop-button {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #a8ffb8;
+    border: 1px solid rgba(29, 185, 84, 0.3);
+    transition: background 0.18s ease, color 0.18s ease;
+}
+
+.loop-button.active {
+    background: #1db954;
+    color: #fff;
+}
+
+.sidebar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    border-radius: 24px;
+    background: #0f1114;
+    border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .queue-list {
@@ -155,13 +206,28 @@ button:hover {
 
 .hero-copy p {
     margin: 0;
-    color: #d7d7d7;
-    max-width: 640px;
-    line-height: 1.8;
+    color: #c6c6c6;
+    max-width: 620px;
+    line-height: 1.75;
+}
+
+.hero {
+    padding: 28px;
+    background: linear-gradient(180deg, rgba(22, 25, 27, 0.9), rgba(14, 16, 18, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+}
+
+.hero-actions button {
+    width: fit-content;
+    padding: 14px 24px;
+    border-radius: 999px;
+    background: #1db954;
+    color: #fff;
 }
 
 .track-list {
-    padding: 24px;
+    padding: 0;
 }
 
 .playlist {
@@ -177,8 +243,8 @@ button:hover {
     align-items: center;
     gap: 14px;
     padding: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #111315;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 18px;
 }
 
@@ -248,11 +314,13 @@ audio {
 
 @media (max-width: 980px) {
     .app-shell {
-        grid-template-columns: 1fr;
+        padding: 18px 16px;
     }
 
-    .sidebar,
-    .main-content {
+    .page-header,
+    .content-grid,
+    .sidebar-group,
+    .track-list {
         width: 100%;
         max-width: 100%;
     }
@@ -262,13 +330,27 @@ audio {
     }
 }
 
+.content-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px) 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.utility-column {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
 @media (max-width: 680px) {
     .app-shell {
         padding: 18px 12px 24px;
     }
 
-    .sidebar {
-        gap: 14px;
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .sidebar-group {
@@ -279,12 +361,16 @@ audio {
         padding: 14px;
     }
 
-    .sidebar .brand h1 {
+    .page-header .brand h1 {
         font-size: 2rem;
     }
 
-    .sidebar .brand p {
+    .page-header .brand p {
         font-size: 0.95rem;
+    }
+
+    .content-grid {
+        grid-template-columns: 1fr;
     }
 
     .queue-controls {
@@ -383,7 +469,7 @@ audio {
     gap: 16px;
     padding: 20px;
     border-radius: 28px;
-    background: rgba(255, 255, 255, 0.04);
+    background: #111315;
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -393,8 +479,8 @@ audio {
     gap: 12px;
     padding: 16px;
     border-radius: 22px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .sidebar-group .sidebar-section h2 {
@@ -402,7 +488,8 @@ audio {
     font-size: 1.05rem;
 }
 
-.sidebar .brand {
+.page-header .brand,
+.sidebar-group .sidebar-section .brand {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -422,9 +509,13 @@ audio {
     width: 100%;
     padding: 14px 18px;
     border-radius: 16px;
-    background: linear-gradient(135deg, #1db954, #1dd268);
+    background: #1db954;
     color: #fff;
     font-weight: 700;
+}
+
+.sidebar-group .sidebar-section button:hover {
+    background: #18b34f;
 }
 
 .sidebar-group .player-header {
