@@ -63,6 +63,8 @@
                     </div>
                     <audio id="audioPlayer" controls></audio>
                     <p id="playerStatus">No track selected</p>
+                    <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
+                    <p id="loopStatus" class="loop-status">Loop disabled</p>
                 </div>
 
                 <div class="sidebar-section">
@@ -72,7 +74,6 @@
                     <div class="queue-controls">
                         <button onclick="playPrevFromQueue()">Previous</button>
                         <button onclick="shuffleQueue()">Shuffle</button>
-                        <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
                         <button onclick="playNextFromQueue()">Next</button>
                     </div>
                     <ul id="queueList" class="queue-list"></ul>

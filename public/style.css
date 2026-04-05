@@ -406,15 +406,24 @@ audio {
 }
 
 .loop-button {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 16px;
     background: rgba(255, 255, 255, 0.08);
     color: #a8ffb8;
     border: 1px solid rgba(29, 185, 84, 0.3);
-    min-width: 96px;
+    transition: background 0.18s ease, color 0.18s ease;
 }
 
 .loop-button.active {
     background: linear-gradient(135deg, #1db954, #1dd268);
     color: #ffffff;
+}
+
+.loop-status {
+    margin: 8px 0 0;
+    color: #b3f3b0;
+    font-size: 0.95rem;
 }
 
 .sidebar-group .hint {

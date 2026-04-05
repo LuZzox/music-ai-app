@@ -309,7 +309,7 @@ function playPrevFromQueue() {
     });
 }
 
-let loopMode = false;
+let loopMode = localStorage.getItem('musica-loop-mode') === 'true';
 
 function shuffleQueue() {
     fetch(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
@@ -328,6 +328,7 @@ function shuffleQueue() {
 
 function toggleLoopMode() {
     loopMode = !loopMode;
+    localStorage.setItem('musica-loop-mode', loopMode);
     const player = document.getElementById('audioPlayer');
     player.loop = loopMode;
     updateLoopButton();
@@ -336,9 +337,14 @@ function toggleLoopMode() {
 
 function updateLoopButton() {
     const button = document.getElementById('loopBtn');
-    if (!button) return;
-    button.textContent = loopMode ? 'Loop On' : 'Loop Off';
-    button.classList.toggle('active', loopMode);
+    const label = document.getElementById('loopStatus');
+    if (button) {
+        button.textContent = loopMode ? 'Loop On' : 'Loop Off';
+        button.classList.toggle('active', loopMode);
+    }
+    if (label) {
+        label.textContent = loopMode ? 'Loop enabled' : 'Loop disabled';
+    }
 }
 
 function addToQueue(id) {
