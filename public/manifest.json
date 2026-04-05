@@ -1,6 +1,6 @@
 {
-  "name": "Musicify",
-  "short_name": "Musicify",
+  "name": "musica",
+  "short_name": "musica",
   "description": "Upload and play your personal music collection.",
   "start_url": ".",
   "display": "standalone",

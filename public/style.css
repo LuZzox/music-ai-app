@@ -267,19 +267,31 @@ audio {
 
 /* Authentication UI */
 .auth-panel {
+    grid-column: 1 / -1;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: radial-gradient(circle at top left, #2dbd6e 0%, transparent 28%),
-                radial-gradient(circle at bottom right, #1f1d2b 0%, transparent 35%),
-                #121212;
+    background: radial-gradient(circle at top left, rgba(45, 189, 110, 0.4) 0%, transparent 28%),
+                radial-gradient(circle at bottom right, rgba(13, 24, 38, 0.8) 0%, transparent 35%),
+                linear-gradient(180deg, #0f1117 0%, #121212 100%);
     padding: 24px;
 }
 
 .auth-card {
-    width: 100%;
-    max-width: 400px;
+    width: min(460px, 100%);
+    max-width: 460px;
+    padding: 32px 28px;
+    border-radius: 28px;
+    background: rgba(18, 24, 33, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.25);
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .auth-form {
@@ -306,21 +318,18 @@ audio {
 .auth-form input:focus {
     outline: none;
     border-color: #2dbd6e;
-    background: rgba(45, 189, 110, 0.1);
+    background: rgba(45, 189, 110, 0.12);
 }
 
 .auth-form button {
-    padding: 12px 24px;
+    padding: 14px 26px;
     background: linear-gradient(135deg, #2dbd6e 0%, #1fa94e 100%);
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     color: white;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    font-size: 0.95rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
+    font-size: 1rem;
 .auth-form button:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px rgba(45, 189, 110, 0.3);
@@ -328,18 +337,20 @@ audio {
 
 .auth-toggle {
     text-align: center;
-    margin: 8px 0 0 0;
-    font-size: 0.9rem;
-    color: #a0a0a0;
+    margin: 10px 0 0 0;
+    font-size: 0.95rem;
+    color: #bfc4cc;
 }
 
 .auth-toggle a {
-    color: #2dbd6e;
+    color: #59e68f;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
 }
 
+.auth-toggle a:hover {
+    text-decoration: underline;
 .auth-toggle a:hover {
     text-decoration: underline;
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'musicify-cache-v2';
+const CACHE_NAME = 'musica-cache-v2';
 const ASSETS = [
   '/',
   '/index.html',
