@@ -28,6 +28,8 @@ button {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    max-width: 1280px;
+    margin: 0 auto;
 }
 
 .page-header {
@@ -325,6 +327,10 @@ audio {
         max-width: 100%;
     }
 
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+
     .sidebar-group {
         padding: 20px;
     }
@@ -332,15 +338,20 @@ audio {
 
 .content-grid {
     display: grid;
-    grid-template-columns: minmax(320px, 420px) 1fr;
-    gap: 24px;
-    align-items: start;
+    grid-template-columns: 1fr minmax(320px, 420px) 1fr;
+    gap: 28px;
+    align-items: stretch;
 }
 
 .utility-column {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    grid-column: 2 / 3;
+}
+
+.track-list {
+    grid-column: 1 / -1;
 }
 
 @media (max-width: 680px) {
