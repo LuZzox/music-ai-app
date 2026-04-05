@@ -29,14 +29,14 @@ button {
 .main-content {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
 }
 
 .card {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 24px;
-    padding: 24px;
+    padding: 20px;
     box-shadow: 0 20px 80px rgba(0, 0, 0, 0.25);
     backdrop-filter: blur(18px);
 }
@@ -65,6 +65,7 @@ button {
 input[type='file'],
 input[type='url'] {
     width: 100%;
+    min-width: 0;
     padding: 14px 16px;
     border-radius: 18px;
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -249,11 +250,50 @@ audio {
     .app-shell {
         grid-template-columns: 1fr;
     }
+
+    .sidebar,
+    .main-content {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .sidebar-group {
+        padding: 20px;
+    }
 }
 
 @media (max-width: 680px) {
-    .card {
-        padding: 18px;
+    .app-shell {
+        padding: 18px 12px 24px;
+    }
+
+    .sidebar {
+        gap: 14px;
+    }
+
+    .sidebar-group {
+        padding: 16px;
+    }
+
+    .sidebar-group .sidebar-section {
+        padding: 14px;
+    }
+
+    .sidebar .brand h1 {
+        font-size: 2rem;
+    }
+
+    .sidebar .brand p {
+        font-size: 0.95rem;
+    }
+
+    .queue-controls {
+        flex-direction: column;
+    }
+
+    .queue-controls button,
+    .loop-button {
+        width: 100%;
     }
 
     .track-item {
@@ -340,8 +380,8 @@ audio {
 .sidebar-group {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 28px;
+    gap: 16px;
+    padding: 20px;
     border-radius: 28px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -350,8 +390,8 @@ audio {
 .sidebar-group .sidebar-section {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 18px;
+    gap: 12px;
+    padding: 16px;
     border-radius: 22px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
