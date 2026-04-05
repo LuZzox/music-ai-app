@@ -12,10 +12,37 @@ const upload = multer({ storage });
 
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/musicify';
 
-mongoose.connect(mongoUri).then(() => {
-  console.log(`Connected to MongoDB: ${mongoUri}`);
+// Warn if using default local connection in production environment
+if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
+  console.warn('⚠️  WARNING: No MONGODB_URI set. Using default local MongoDB.');
+  console.warn('⚠️  Set MONGODB_URI environment variable to connect to MongoDB Atlas.');
+}
+
+mongoose.set('strictQuery', false);
+
+mongoose.connect(mongoUri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 15000,
+  socketTimeoutMS: 45000,
+  family: 4,
+  retryWrites: true
+}).then(() => {
+  console.log('✓ Connected to MongoDB');
 }).catch(err => {
-  console.error('MongoDB connection error:', err);
+  console.error('✗ MongoDB connection failed:');
+  console.error(`  URI: ${mongoUri.split('@')[0]}@*****`);
+  console.error(`  Error: ${err.message}`);
+  console.error('');
+  console.error('Troubleshooting:');
+  console.error('1. Check MONGODB_URI environment variable is correct');
+  console.error('2. Verify MongoDB user credentials (email/password)');
+  console.error('3. Allow Network Access in MongoDB Atlas (IP whitelist)');
+  console.error('4. For Render: add 0.0.0.0/0 to Atlas IP access list');
+  console.error('');
+  
+  // Continue server startup anyway, but database operations will fail
+  console.warn('Server starting without database. API requests will fail.');
 });
 
 const userSchema = new mongoose.Schema({
@@ -145,7 +172,18 @@ function ensureAuthenticated(req, res, next) {
   res.status(401).json({ error: 'Unauthorized' });
 }
 
-app.post('/signup', async (req, res) => {
+function requireDatabase(req, res, next) {
+  if (mongoose.connection.readyState === 1) {
+    return next();
+  }
+  res.status(503).json({ 
+    error: 'Database unavailable',
+    details: 'MongoDB connection failed. Check MONGODB_URI and network access.',
+    readyState: mongoose.connection.readyState
+  });
+}
+
+app.post('/signup', requireDatabase, async (req, res) => {
   const { email, password, displayName } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -166,7 +204,7 @@ app.post('/signup', async (req, res) => {
   }
 });
 
-app.post('/login', async (req, res) => {
+app.post('/login', requireDatabase, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -221,7 +259,7 @@ class MusicManager {
 
 module.exports = { Queue, Player, MusicManager, app };
 
-app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
+app.get('/mp3_files', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const rows = await Mp3FileModel.find({ userId: req.session.userId }).sort({ createdAt: -1 });
     res.json(rows.map(row => ({ id: row._id, file_name: row.fileName, created_at: row.createdAt })));
@@ -235,7 +273,7 @@ app.post('/mp3_files', ensureAuthenticated, (req, res) => {
   res.status(201).send(`MP3 file added: ${mp3File.fileName}`);
 });
 
-app.post('/upload', ensureAuthenticated, upload.single('music'), async (req, res) => {
+app.post('/upload', ensureAuthenticated, requireDatabase, upload.single('music'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -262,7 +300,7 @@ app.post('/upload', ensureAuthenticated, upload.single('music'), async (req, res
   }
 });
 
-app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
+app.delete('/mp3_files/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const result = await Mp3FileModel.deleteOne({ _id: req.params.id, userId: req.session.userId });
     if (!result.deletedCount) {
@@ -275,7 +313,7 @@ app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/play/:id', ensureAuthenticated, async (req, res) => {
+app.get('/play/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.session.userId });
     if (!row) {
@@ -294,7 +332,7 @@ app.get('/stop', ensureAuthenticated, (req, res) => {
   res.send('Playback stopped');
 });
 
-app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
+app.post('/queue/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.session.userId });
     if (!row) {
@@ -336,6 +374,14 @@ app.post('/shuffle', ensureAuthenticated, (req, res) => {
 
 app.get('/queue', ensureAuthenticated, (req, res) => {
   res.json(queue.getQueue(req.session.userId));
+});
+
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(500).json({ error: err.message || 'Server error' });
 });
 
 app.use((req, res) => {
