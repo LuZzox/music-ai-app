@@ -41,14 +41,10 @@ Cloud deployment:
 2. Render is a good choice for simple deployments; use `render.yaml` already included in this repo.
 3. Another simple option is Railway or Heroku.
 
-Authentication setup:
-1. Create a Google OAuth client in the Google Cloud Console.
-2. Set the redirect URI to `https://your-domain.com/auth/google/callback`.
-3. Add the following environment variables to your deployment:
-   - `GOOGLE_CLIENT_ID`
-   - `GOOGLE_CLIENT_SECRET`
-   - `GOOGLE_CALLBACK_URL` (e.g. `https://music-ai-app.onrender.com/auth/google/callback`)
-   - `SESSION_SECRET`
+Database setup:
+1. Create a MongoDB Atlas cluster or use any hosted MongoDB.
+2. Create a database user and get the connection URI.
+3. Add the following environment variable to your deployment:
    - `MONGODB_URI` (e.g. `mongodb+srv://<user>:<pass>@cluster0.mongodb.net/musicify?retryWrites=true&w=majority`)
 
 Render deployment steps:

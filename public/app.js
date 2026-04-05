@@ -14,8 +14,6 @@ function resolveApiUrl(path) {
     return base ? `${base.replace(/\/$/, '')}${path}` : path;
 }
 
-let currentUser = null;
-
 function saveBackendUrl() {
     const url = document.getElementById('backendUrl').value.trim();
     API_BASE = url;
@@ -34,64 +32,6 @@ function loadBackendUrl() {
         document.getElementById('backendUrl').value = DEFAULT_API_BASE;
         setStatus('Using Render backend: ' + DEFAULT_API_BASE);
     }
-}
-
-function updateAuthState() {
-    const authStatus = document.getElementById('authStatus');
-    const loginButton = document.getElementById('loginButton');
-    const logoutButton = document.getElementById('logoutButton');
-    const uploadPanel = document.querySelector('.upload-panel');
-    const trackList = document.querySelector('.track-list');
-
-    if (currentUser) {
-        authStatus.textContent = `Signed in as ${currentUser.name || currentUser.email}`;
-        loginButton.style.display = 'none';
-        logoutButton.style.display = 'inline-block';
-        uploadPanel.style.display = 'block';
-        trackList.style.display = 'block';
-        setStatus(`Welcome ${currentUser.name || currentUser.email}`);
-    } else {
-        authStatus.textContent = 'Please sign in with Google to access your music.';
-        loginButton.style.display = 'inline-block';
-        logoutButton.style.display = 'none';
-        uploadPanel.style.display = 'none';
-        trackList.style.display = 'none';
-        document.getElementById('mp3List').innerHTML = '';
-        document.getElementById('queueList').innerHTML = '';
-        setStatus('Please log in to use Musicify');
-    }
-}
-
-function getCurrentUser() {
-    fetch(resolveApiUrl('/auth/user'))
-    .then(response => response.json())
-    .then(data => {
-        currentUser = data.authenticated ? data.user : null;
-        updateAuthState();
-        if (currentUser) {
-            getMp3Files();
-            getQueue();
-        }
-    })
-    .catch(() => {
-        currentUser = null;
-        updateAuthState();
-    });
-}
-
-function loginWithGoogle() {
-    window.location.href = resolveApiUrl('/auth/google');
-}
-
-function logout() {
-    fetch(resolveApiUrl('/auth/logout'), { method: 'POST' })
-    .then(() => {
-        currentUser = null;
-        updateAuthState();
-    })
-    .catch(error => {
-        setStatus(`Logout error: ${error.message}`);
-    });
 }
 
 function uploadMusic() {
@@ -302,5 +242,6 @@ if ('serviceWorker' in navigator) {
 
 window.onload = () => {
     loadBackendUrl();
-    getCurrentUser();
+    getMp3Files();
+    getQueue();
 };
