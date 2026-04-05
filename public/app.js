@@ -210,15 +210,17 @@ function getMp3Files() {
         if (!response.ok) {
             throw new Error(body?.error || body || 'Failed to load tracks');
         }
+        if (!Array.isArray(body)) {
+            console.error('Expected array, got:', body);
+            throw new Error('Invalid response format: expected array of tracks');
+        }
         return body;
     })
     .then(data => {
-        if (!Array.isArray(data)) {
-            throw new Error('Invalid response format');
-        }
         const list = document.getElementById('mp3List');
         list.innerHTML = '';
-        data.forEach(mp3 => {
+        if (data && Array.isArray(data)) {
+            data.forEach(mp3 => {
             const li = document.createElement('li');
             li.className = 'track-item';
 
@@ -257,14 +259,20 @@ function getMp3Files() {
             actions.appendChild(queueButton);
             actions.appendChild(deleteButton);
 
-            li.appendChild(thumb);
-            li.appendChild(meta);
-            li.appendChild(actions);
-            list.appendChild(li);
-        });
+                li.appendChild(thumb);
+                li.appendChild(meta);
+                li.appendChild(actions);
+                list.appendChild(li);
+            });
+        } else {
+            list.innerHTML = '<li style="padding: 20px; text-align: center; color: #999;">No tracks yet</li>';
+        }
     })
     .catch(error => {
+        console.error('getMp3Files error:', error);
         setStatus(`Load error: ${error.message}`);
+        const list = document.getElementById('mp3List');
+        list.innerHTML = `<li style="padding: 20px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
     });
 }
 
@@ -338,22 +346,28 @@ function getQueue() {
         if (!response.ok) {
             throw new Error(body?.error || body || 'Queue load failed');
         }
+        if (!Array.isArray(body)) {
+            console.error('Expected array, got:', body);
+            throw new Error('Invalid response format: expected array of queue items');
+        }
         return body;
     })
     .then(data => {
-        if (!Array.isArray(data)) {
-            throw new Error('Invalid queue response format');
-        }
         const queueList = document.getElementById('queueList');
         queueList.innerHTML = '';
-        data.forEach(item => {
-            const li = document.createElement('li');
-            li.className = 'queue-item';
-            li.textContent = `${item.fileName} (Track ${item.id})`;
-            queueList.appendChild(li);
-        });
+        if (data && Array.isArray(data) && data.length > 0) {
+            data.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'queue-item';
+                li.textContent = `${item.fileName} (Track ${item.id})`;
+                queueList.appendChild(li);
+            });
+        } else {
+            queueList.innerHTML = '<li style="padding: 10px; text-align: center; color: #999;">Queue is empty</li>';
+        }
     })
     .catch(error => {
+        console.error('getQueue error:', error);
         setStatus(`Queue load error: ${error.message}`);
     });
 }
