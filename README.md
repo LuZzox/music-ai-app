@@ -49,6 +49,7 @@ Authentication setup:
    - `GOOGLE_CLIENT_SECRET`
    - `GOOGLE_CALLBACK_URL` (e.g. `https://music-ai-app.onrender.com/auth/google/callback`)
    - `SESSION_SECRET`
+   - `MONGODB_URI` (e.g. `mongodb+srv://<user>:<pass>@cluster0.mongodb.net/musicify?retryWrites=true&w=majority`)
 
 Render deployment steps:
 1. Push your project to GitHub.

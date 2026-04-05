@@ -1,24 +1,50 @@
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
-const SQLiteStore = require('connect-sqlite3')(session);
+const MongoStore = require('connect-mongo');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const multer = require('multer');
-const sqlite3 = require('sqlite3').verbose();
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 const app = express();
 
 const storage = multer.memoryStorage();
-
 const upload = multer({ storage });
 
-// Middleware
+const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/musicify';
+
+mongoose.connect(mongoUri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log(`Connected to MongoDB: ${mongoUri}`);
+}).catch(err => {
+  console.error('MongoDB connection error:', err);
+});
+
+const userSchema = new mongoose.Schema({
+  googleId: { type: String, unique: true },
+  displayName: String,
+  email: String
+}, { timestamps: true });
+
+const mp3FileSchema = new mongoose.Schema({
+  fileName: String,
+  fileData: Buffer,
+  fileHash: String,
+  createdAt: { type: Date, default: Date.now },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+});
+
+const User = mongoose.model('User', userSchema);
+const Mp3FileModel = mongoose.model('Mp3File', mp3FileSchema);
+
 app.use(express.json());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
   saveUninitialized: false,
-  store: new SQLiteStore({ db: 'sessions.sqlite', dir: './', table: 'sessions' }),
+  store: MongoStore.create({ mongoUrl: mongoUri, collectionName: 'sessions' }),
   cookie: {
     maxAge: 24 * 60 * 60 * 1000,
     sameSite: 'lax'
@@ -28,73 +54,45 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static('public'));
 
-// Configure SQLite database connection
-let db = new sqlite3.Database('./music.db');
-
-// Create tables if they don't exist and migrate schema if needed
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS mp3_files (
-      id INTEGER PRIMARY KEY,
-      file_name TEXT NOT NULL,
-      file_data BLOB NOT NULL,
-      file_hash TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY,
-      google_id TEXT UNIQUE,
-      display_name TEXT,
-      email TEXT
-    );
-  `);
-
-  db.get("PRAGMA table_info(mp3_files)", (err, row) => {
-    if (!err && row) {
-      // Column exists; nothing else needed here.
-    }
-  });
-
-  db.all("PRAGMA table_info(mp3_files)", (err, rows) => {
-    if (!err && rows && !rows.some(col => col.name === 'file_hash')) {
-      db.run('ALTER TABLE mp3_files ADD COLUMN file_hash TEXT');
-    }
-  });
-
-  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_mp3_files_file_hash ON mp3_files(file_hash)');
-});
-
-// Define MP3File class to represent MP3 files
-class Mp3File {
+class Mp3FileItem {
   constructor(id, fileName) {
     this.id = id;
     this.fileName = fileName;
   }
 }
 
-// Define Queue class to store and retrieve MP3 files
 class Queue {
   constructor() {
-    this.mp3Files = [];
+    this.userQueues = new Map();
   }
 
-  addMp3File(mp3File) {
-    return this.mp3Files.push(mp3File);
+  addMp3File(userId, mp3File) {
+    const key = userId.toString();
+    const queue = this.userQueues.get(key) || [];
+    queue.push(mp3File);
+    this.userQueues.set(key, queue);
+    return queue;
   }
 
-  getNextMp3File() {
-    if (this.mp3Files.length > 0) {
-      return this.mp3Files.shift();
-    } else {
-      return null;
-    }
+  getNextMp3File(userId) {
+    const key = userId.toString();
+    const queue = this.userQueues.get(key) || [];
+    const next = queue.length > 0 ? queue.shift() : null;
+    this.userQueues.set(key, queue);
+    return next;
+  }
+
+  getQueue(userId) {
+    return this.userQueues.get(userId.toString()) || [];
+  }
+
+  removeMp3File(userId, id) {
+    const key = userId.toString();
+    const queue = this.userQueues.get(key) || [];
+    this.userQueues.set(key, queue.filter(item => item.id.toString() !== id.toString()));
   }
 }
 
-// Define Player class to play MP3 files
 class Player {
   constructor() {
     this.currentMp3File = null;
@@ -115,7 +113,6 @@ class Player {
   }
 }
 
-// Initialize queue and player
 const queue = new Queue();
 const player = new Player();
 
@@ -124,7 +121,7 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser((id, done) => {
-  db.get('SELECT id, google_id, display_name, email FROM users WHERE id = ?', [id], (err, user) => {
+  User.findById(id, 'googleId displayName email', (err, user) => {
     done(err, user);
   });
 });
@@ -138,15 +135,14 @@ passport.use(new GoogleStrategy({
   const displayName = profile.displayName || `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
   const email = profile.emails && profile.emails[0] && profile.emails[0].value;
 
-  db.get('SELECT id, google_id, display_name, email FROM users WHERE google_id = ?', [googleId], (err, user) => {
+  User.findOne({ googleId }, (err, user) => {
     if (err) return done(err);
     if (user) return done(null, user);
 
-    db.run('INSERT INTO users (google_id, display_name, email) VALUES (?, ?, ?)', [googleId, displayName, email], function (err) {
-      if (err) return done(err);
-      db.get('SELECT id, google_id, display_name, email FROM users WHERE id = ?', [this.lastID], (err, newUser) => {
-        done(err, newUser);
-      });
+    const newUser = new User({ googleId, displayName, email });
+    newUser.save((saveErr, savedUser) => {
+      if (saveErr) return done(saveErr);
+      done(null, savedUser);
     });
   });
 }));
@@ -173,7 +169,7 @@ class MusicManager {
   }
 }
 
-module.exports = { Mp3File, Queue, Player, MusicManager, app };
+module.exports = { Queue, Player, MusicManager, app };
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
@@ -193,7 +189,7 @@ app.get('/auth/user', (req, res) => {
       authenticated: true,
       user: {
         id: req.user.id,
-        name: req.user.display_name,
+        name: req.user.displayName,
         email: req.user.email
       }
     });
@@ -208,20 +204,21 @@ app.post('/auth/logout', (req, res) => {
   });
 });
 
-// Define API routes
-app.get('/mp3_files', ensureAuthenticated, (req, res) => {
-  db.all('SELECT id, file_name, created_at FROM mp3_files ORDER BY created_at DESC', (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
+  try {
+    const rows = await Mp3FileModel.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(rows.map(row => ({ id: row._id, file_name: row.fileName, created_at: row.createdAt })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/mp3_files', (req, res) => {
-  const mp3File = new Mp3File(req.body.id, req.body.fileName);
+app.post('/mp3_files', ensureAuthenticated, (req, res) => {
+  const mp3File = new Mp3FileItem(req.body.id, req.body.fileName);
   res.status(201).send(`MP3 file added: ${mp3File.fileName}`);
 });
 
-app.post('/upload', ensureAuthenticated, upload.single('music'), (req, res) => {
+app.post('/upload', ensureAuthenticated, upload.single('music'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -230,48 +227,49 @@ app.post('/upload', ensureAuthenticated, upload.single('music'), (req, res) => {
   const fileData = req.file.buffer;
   const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
 
-  db.get('SELECT id FROM mp3_files WHERE file_hash = ? OR file_name = ?', [fileHash, fileName], (err, existing) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    const existing = await Mp3FileModel.findOne({ userId: req.user.id, $or: [{ fileHash }, { fileName }] });
     if (existing) {
       return res.status(409).json({ error: 'Duplicate track found: same file name or same file content' });
     }
 
-    db.run('INSERT INTO mp3_files (file_name, file_data, file_hash) VALUES (?, ?, ?)', [fileName, fileData, fileHash], function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      const mp3File = new Mp3File(this.lastID, fileName);
-      queue.addMp3File(mp3File);
-      res.status(201).json({ id: this.lastID, fileName });
-    });
-  });
+    const mp3Document = new Mp3FileModel({ fileName, fileData, fileHash, userId: req.user.id });
+    await mp3Document.save();
+
+    const mp3File = new Mp3FileItem(mp3Document._id, fileName);
+    queue.addMp3File(req.user.id, mp3File);
+
+    res.status(201).json({ id: mp3Document._id, fileName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.delete('/mp3_files/:id', ensureAuthenticated, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  db.run('DELETE FROM mp3_files WHERE id = ?', [id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (this.changes === 0) {
+app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const result = await Mp3FileModel.deleteOne({ _id: req.params.id, userId: req.user.id });
+    if (!result.deletedCount) {
       return res.status(404).json({ error: 'Track not found' });
     }
-    queue.mp3Files = queue.mp3Files.filter(item => item.id !== id);
-    res.json({ message: 'Track deleted', id });
-  });
+    queue.removeMp3File(req.user.id, req.params.id);
+    res.json({ message: 'Track deleted', id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/play/:id', ensureAuthenticated, (req, res) => {
-  const id = req.params.id;
-  db.get('SELECT id, file_name, file_data FROM mp3_files WHERE id = ?', [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: 'MP3 file not found' });
+app.get('/play/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!row) {
+      return res.status(404).json({ error: 'MP3 file not found' });
+    }
     res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `inline; filename="${row.file_name}"`);
-    res.send(row.file_data);
-  });
+    res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
+    res.send(row.fileData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/stop', ensureAuthenticated, (req, res) => {
@@ -279,19 +277,23 @@ app.get('/stop', ensureAuthenticated, (req, res) => {
   res.send('Playback stopped');
 });
 
-app.post('/queue/:id', ensureAuthenticated, (req, res) => {
-  const id = req.params.id;
-  db.get('SELECT id, file_name FROM mp3_files WHERE id = ?', [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: 'MP3 file not found' });
-    const mp3File = new Mp3File(row.id, row.file_name);
-    queue.addMp3File(mp3File);
+app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!row) {
+      return res.status(404).json({ error: 'MP3 file not found' });
+    }
+
+    const mp3File = new Mp3FileItem(row._id, row.fileName);
+    queue.addMp3File(req.user.id, mp3File);
     res.json({ message: 'Added to queue', file: mp3File });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/play-next', ensureAuthenticated, (req, res) => {
-  const nextFile = queue.getNextMp3File();
+  const nextFile = queue.getNextMp3File(req.user.id);
   if (nextFile) {
     player.playMp3File(nextFile);
     res.json({ playing: nextFile });
@@ -301,7 +303,7 @@ app.get('/play-next', ensureAuthenticated, (req, res) => {
 });
 
 app.get('/queue', ensureAuthenticated, (req, res) => {
-  res.json(queue.mp3Files);
+  res.json(queue.getQueue(req.user.id));
 });
 
 app.use((req, res) => {
