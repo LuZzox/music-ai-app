@@ -1,5 +1,6 @@
 const DEFAULT_API_BASE = 'https://music-ai-app.onrender.com';
 let API_BASE = DEFAULT_API_BASE;
+let currentUser = null;
 
 function setStatus(message) {
     document.getElementById('playerStatus').textContent = message;
@@ -12,6 +13,136 @@ function getApiBase() {
 function resolveApiUrl(path) {
     const base = getApiBase();
     return base ? `${base.replace(/\/$/, '')}${path}` : path;
+}
+
+async function parseJsonOrText(response) {
+    const text = await response.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
+}
+
+function toggleAuthMode(e) {
+    e.preventDefault();
+    document.getElementById('loginForm').style.display = document.getElementById('loginForm').style.display === 'none' ? 'block' : 'none';
+    document.getElementById('signupForm').style.display = document.getElementById('signupForm').style.display === 'none' ? 'block' : 'none';
+}
+
+function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) {
+        alert('Please enter email and password');
+        return;
+    }
+
+    fetch(resolveApiUrl('/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || 'Login failed');
+        }
+        return body;
+    })
+    .then(user => {
+        currentUser = user;
+        document.getElementById('loginEmail').value = '';
+        document.getElementById('loginPassword').value = '';
+        showApp();
+        getMp3Files();
+        getQueue();
+    })
+    .catch(error => {
+        alert(`Login error: ${error.message}`);
+    });
+}
+
+function handleSignup() {
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const displayName = document.getElementById('signupName').value.trim() || email.split('@')[0];
+
+    if (!email || !password) {
+        alert('Please enter email and password');
+        return;
+    }
+
+    fetch(resolveApiUrl('/signup'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, displayName })
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || 'Signup failed');
+        }
+        return body;
+    })
+    .then(user => {
+        currentUser = user;
+        document.getElementById('signupEmail').value = '';
+        document.getElementById('signupPassword').value = '';
+        document.getElementById('signupName').value = '';
+        showApp();
+        getMp3Files();
+        getQueue();
+    })
+    .catch(error => {
+        alert(`Signup error: ${error.message}`);
+    });
+}
+
+function handleLogout() {
+    fetch(resolveApiUrl('/logout'), { method: 'POST' })
+    .then(() => {
+        currentUser = null;
+        document.getElementById('musicFile').value = '';
+        showAuth();
+    })
+    .catch(error => {
+        console.error('Logout error:', error);
+        currentUser = null;
+        showAuth();
+    });
+}
+
+function showAuth() {
+    document.getElementById('authPanel').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'none';
+}
+
+function showApp() {
+    document.getElementById('authPanel').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'flex';
+    document.getElementById('mainContent').style.display = 'block';
+}
+
+function checkAuth() {
+    fetch(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (body.authenticated) {
+            currentUser = body.user;
+            loadBackendUrl();
+            showApp();
+            getMp3Files();
+            getQueue();
+        } else {
+            showAuth();
+        }
+    })
+    .catch(() => {
+        showAuth();
+    });
 }
 
 function saveBackendUrl() {
@@ -48,17 +179,17 @@ function uploadMusic() {
 
     fetch(resolveApiUrl('/upload'), {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+            'Accept': 'application/json'
+        }
     })
     .then(async response => {
-        const contentType = response.headers.get('content-type') || '';
-        const body = contentType.includes('application/json') ? await response.json() : await response.text();
-
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
             const message = body && body.error ? body.error : body;
             throw new Error(message || 'Upload failed');
         }
-
         return body;
     })
     .then(data => {
@@ -142,11 +273,11 @@ function playMp3(id) {
 }
 
 function playPrevFromQueue() {
-    fetch(resolveApiUrl('/play-prev'))
+    fetch(resolveApiUrl('/play-prev'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
-        const body = await response.json();
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
-            throw new Error(body?.error || 'Play previous failed');
+            throw new Error(body?.error || body || 'Play previous failed');
         }
         if (body.playing) {
             playMp3(body.playing.id);
@@ -162,11 +293,11 @@ function playPrevFromQueue() {
 }
 
 function shuffleQueue() {
-    fetch(resolveApiUrl('/shuffle'), { method: 'POST' })
+    fetch(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
     .then(async response => {
-        const body = await response.json();
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
-            throw new Error(body?.error || 'Shuffle failed');
+            throw new Error(body?.error || body || 'Shuffle failed');
         }
         setStatus('Queue shuffled');
         getQueue();
@@ -177,11 +308,11 @@ function shuffleQueue() {
 }
 
 function addToQueue(id) {
-    fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST' })
+    fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST', headers: { 'Accept': 'application/json' } })
     .then(async response => {
-        const body = await response.json().catch(() => null);
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
-            throw new Error(body?.error || 'Queue failed');
+            throw new Error(body?.error || body || 'Queue failed');
         }
         setStatus(`Added track ${id} to queue`);
         getQueue();
@@ -192,8 +323,14 @@ function addToQueue(id) {
 }
 
 function getQueue() {
-    fetch(resolveApiUrl('/queue'))
-    .then(response => response.json())
+    fetch(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Queue load failed');
+        }
+        return body;
+    })
     .then(data => {
         const queueList = document.getElementById('queueList');
         queueList.innerHTML = '';
@@ -210,11 +347,11 @@ function getQueue() {
 }
 
 function playNextFromQueue() {
-    fetch(resolveApiUrl('/play-next'))
+    fetch(resolveApiUrl('/play-next'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
-        const body = await response.json();
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
-            throw new Error(body?.error || 'Play next failed');
+            throw new Error(body?.error || body || 'Play next failed');
         }
         if (body.playing) {
             playMp3(body.playing.id);
@@ -238,11 +375,11 @@ function deleteMp3(id) {
         method: 'DELETE'
     })
     .then(async response => {
+        const body = await parseJsonOrText(response);
         if (!response.ok) {
-            const body = await response.json().catch(() => null);
-            throw new Error(body?.error || 'Delete failed');
+            throw new Error(body?.error || body || 'Delete failed');
         }
-        return response.json();
+        return body;
     })
     .then(() => {
         setStatus(`Deleted track ${id}`);
@@ -279,11 +416,9 @@ if ('serviceWorker' in navigator) {
 }
 
 window.onload = () => {
-    loadBackendUrl();
     const player = document.getElementById('audioPlayer');
     player.onended = () => {
         playNextFromQueue();
     };
-    getMp3Files();
-    getQueue();
+    checkAuth();
 };
