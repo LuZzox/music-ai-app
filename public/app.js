@@ -309,6 +309,8 @@ function playPrevFromQueue() {
     });
 }
 
+let loopMode = false;
+
 function shuffleQueue() {
     fetch(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
     .then(async response => {
@@ -322,6 +324,21 @@ function shuffleQueue() {
     .catch(error => {
         setStatus(`Shuffle error: ${error.message}`);
     });
+}
+
+function toggleLoopMode() {
+    loopMode = !loopMode;
+    const player = document.getElementById('audioPlayer');
+    player.loop = loopMode;
+    updateLoopButton();
+    setStatus(loopMode ? 'Loop enabled' : 'Loop disabled');
+}
+
+function updateLoopButton() {
+    const button = document.getElementById('loopBtn');
+    if (!button) return;
+    button.textContent = loopMode ? 'Loop On' : 'Loop Off';
+    button.classList.toggle('active', loopMode);
 }
 
 function addToQueue(id) {
@@ -443,8 +460,12 @@ if ('serviceWorker' in navigator) {
 
 window.onload = () => {
     const player = document.getElementById('audioPlayer');
+    player.loop = loopMode;
     player.onended = () => {
-        playNextFromQueue();
+        if (!loopMode) {
+            playNextFromQueue();
+        }
     };
+    updateLoopButton();
     checkAuth();
 };

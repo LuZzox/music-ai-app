@@ -330,9 +330,98 @@ audio {
     font-weight: 700;
     cursor: pointer;
     font-size: 1rem;
+}
+
 .auth-form button:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px rgba(45, 189, 110, 0.3);
+}
+
+.sidebar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 28px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-group .sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-group .sidebar-section h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.sidebar .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sidebar-group .sidebar-section input,
+.sidebar-group .sidebar-section select {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #f4f4f4;
+}
+
+.sidebar-group .sidebar-section button {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #1db954, #1dd268);
+    color: #fff;
+    font-weight: 700;
+}
+
+.sidebar-group .player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.sidebar-group .player-header span {
+    font-weight: 700;
+    color: #f4f4f4;
+}
+
+.sidebar-group .queue-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.loop-button {
+    background: rgba(255, 255, 255, 0.08);
+    color: #a8ffb8;
+    border: 1px solid rgba(29, 185, 84, 0.3);
+    min-width: 96px;
+}
+
+.loop-button.active {
+    background: linear-gradient(135deg, #1db954, #1dd268);
+    color: #ffffff;
+}
+
+.sidebar-group .hint {
+    margin: 10px 0 0;
+    color: #9a9a9a;
+    font-size: 0.95rem;
+    line-height: 1.5;
 }
 
 .auth-toggle {
@@ -349,8 +438,6 @@ audio {
     cursor: pointer;
 }
 
-.auth-toggle a:hover {
-    text-decoration: underline;
 .auth-toggle a:hover {
     text-decoration: underline;
 }
