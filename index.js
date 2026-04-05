@@ -18,7 +18,36 @@ if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
   console.warn('⚠️  Set MONGODB_URI environment variable to connect to MongoDB Atlas.');
 }
 
+// Check for placeholder cluster name
+if (mongoUri.includes('cluster0.mongodb.net')) {
+  console.warn('⚠️  WARNING: Using cluster0.mongodb.net placeholder.');
+  console.warn('⚠️  Replace cluster0 with your actual MongoDB Atlas cluster name.');
+}
+
 mongoose.set('strictQuery', false);
+
+// Handle connection state changes
+mongoose.connection.on('connected', () => {
+  console.log('✓ Connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('✗ MongoDB connection error:');
+  console.error(`  Error: ${err.message}`);
+  console.error('');
+  console.error('Troubleshooting:');
+  console.error('1. Check MONGODB_URI environment variable is correct');
+  console.error('2. If using cluster0.mongodb.net, replace it with your actual cluster name');
+  console.error('3. Verify MongoDB user credentials (email/password)');
+  console.error('4. Allow Network Access in MongoDB Atlas (IP whitelist)');
+  console.error('5. For Render: add 0.0.0.0/0 to Atlas IP access list');
+  console.error('');
+  console.error('Server continuing, but database operations will fail.');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️  Disconnected from MongoDB');
+});
 
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
@@ -27,22 +56,10 @@ mongoose.connect(mongoUri, {
   socketTimeoutMS: 45000,
   family: 4,
   retryWrites: true
-}).then(() => {
-  console.log('✓ Connected to MongoDB');
 }).catch(err => {
-  console.error('✗ MongoDB connection failed:');
-  console.error(`  URI: ${mongoUri.split('@')[0]}@*****`);
+  // Log initial connection error but don't crash
+  console.error('✗ Initial MongoDB connection failed:');
   console.error(`  Error: ${err.message}`);
-  console.error('');
-  console.error('Troubleshooting:');
-  console.error('1. Check MONGODB_URI environment variable is correct');
-  console.error('2. Verify MongoDB user credentials (email/password)');
-  console.error('3. Allow Network Access in MongoDB Atlas (IP whitelist)');
-  console.error('4. For Render: add 0.0.0.0/0 to Atlas IP access list');
-  console.error('');
-  
-  // Continue server startup anyway, but database operations will fail
-  console.warn('Server starting without database. API requests will fail.');
 });
 
 const userSchema = new mongoose.Schema({
