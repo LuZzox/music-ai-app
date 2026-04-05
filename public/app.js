@@ -130,15 +130,15 @@ function checkAuth() {
     fetch(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
-        if (body.authenticated) {
-            currentUser = body.user;
-            loadBackendUrl();
-            showApp();
-            getMp3Files();
-            getQueue();
-        } else {
+        if (!response.ok || !body || !body.authenticated) {
             showAuth();
+            return;
         }
+        currentUser = body.user;
+        loadBackendUrl();
+        showApp();
+        getMp3Files();
+        getQueue();
     })
     .catch(() => {
         showAuth();
@@ -205,8 +205,17 @@ function uploadMusic() {
 
 function getMp3Files() {
     fetch(resolveApiUrl('/mp3_files'))
-    .then(response => response.json())
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Failed to load tracks');
+        }
+        return body;
+    })
     .then(data => {
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid response format');
+        }
         const list = document.getElementById('mp3List');
         list.innerHTML = '';
         data.forEach(mp3 => {
@@ -332,6 +341,9 @@ function getQueue() {
         return body;
     })
     .then(data => {
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid queue response format');
+        }
         const queueList = document.getElementById('queueList');
         queueList.innerHTML = '';
         data.forEach(item => {
