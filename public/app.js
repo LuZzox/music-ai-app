@@ -3,6 +3,7 @@ let API_BASE = DEFAULT_API_BASE;
 let currentUser = null;
 let currentTrackMeta = null;
 let currentPlaylistId = null;
+let currentLoopTrackIds = [];
 
 function setStatus(message) {
     document.getElementById('playerStatus').textContent = message;
@@ -585,6 +586,7 @@ function loadPlaylistDetails(id, name) {
 function renderPlaylistTracks(tracks) {
     const list = document.getElementById('playlistTrackList');
     list.innerHTML = '';
+    currentLoopTrackIds = Array.isArray(tracks) ? tracks.map(track => track.id) : [];
     if (!Array.isArray(tracks) || tracks.length === 0) {
         list.innerHTML = '<li style="padding: 16px; text-align: center; color: #999;">No songs in this playlist yet.</li>';
         return;
@@ -656,6 +658,53 @@ function removeFromPlaylist(playlistId, trackId) {
     });
 }
 
+async function playPlaylist(trackIds, playlistName) {
+    if (!Array.isArray(trackIds) || trackIds.length === 0) {
+        setStatus('No songs to play from this playlist');
+        return;
+    }
+    const player = document.getElementById('audioPlayer');
+    const name = playlistName || 'Playlist';
+
+    currentLoopTrackIds = [...trackIds];
+
+    if (!player.src || player.paused) {
+        const [firstId, ...restIds] = trackIds;
+        currentTrackId = firstId;
+        player.src = resolveApiUrl(`/play/${firstId}`);
+        player.load();
+        player.play().then(() => setPlayButtonState(true)).catch(error => {
+            setStatus(`Playback error: ${error.message}`);
+            setPlayButtonState(false);
+        });
+        updateNowPlaying({ title: `${name}`, subtitle: 'Playing playlist', status: `Playing ${name}` });
+        if (restIds.length > 0) {
+            await queueTracks(restIds, { silent: true });
+        }
+        await getQueue();
+    } else {
+        await queueTracks(trackIds);
+        setStatus(`Queued ${trackIds.length} songs from ${name}`);
+    }
+}
+
+async function queueCurrentPlaylist() {
+    if (!currentPlaylistId || currentLoopTrackIds.length === 0) {
+        alert('Select a playlist with tracks first');
+        return;
+    }
+    await queueTracks(currentLoopTrackIds);
+    setStatus(`Queued ${currentLoopTrackIds.length} playlist tracks`);
+}
+
+async function playCurrentPlaylist() {
+    if (!currentPlaylistId || currentLoopTrackIds.length === 0) {
+        alert('Select a playlist with tracks first');
+        return;
+    }
+    await playPlaylist(currentLoopTrackIds, document.getElementById('currentPlaylistName').textContent || 'Playlist');
+}
+
 function importTrack(id) {
     fetch(resolveApiUrl(`/import/${id}`), {
         method: 'POST',
@@ -681,14 +730,25 @@ let currentTrackId = null;
 
 function playMp3(id, title = '', subtitle = '') {
     const player = document.getElementById('audioPlayer');
+    const trackTitle = title || `Track ${id}`;
+    const trackSubtitle = subtitle || 'Playing now';
+
+    if (!player.paused && currentTrackId && currentTrackId.toString() !== id.toString()) {
+        addToQueue(id);
+        setStatus(`Queued ${trackTitle}`);
+        return;
+    }
+
     currentTrackId = id;
+    currentLoopTrackIds = [id];
+
     player.src = resolveApiUrl(`/play/${id}`);
     player.load();
     player.play().then(() => setPlayButtonState(true)).catch(error => {
         setStatus(`Playback error: ${error.message}`);
         setPlayButtonState(false);
     });
-    updateNowPlaying({ title: title || `Track ${id}`, subtitle: subtitle || 'Playing now', cover: title ? title.charAt(0).toUpperCase() : '♫', status: `Playing ${title || id}` });
+    updateNowPlaying({ title: trackTitle, subtitle: trackSubtitle, status: `Playing ${trackTitle}` });
 }
 
 function playPrevFromQueue() {
@@ -731,8 +791,6 @@ function shuffleQueue() {
 function toggleLoopMode() {
     loopMode = !loopMode;
     localStorage.setItem('musica-loop-mode', loopMode);
-    const player = document.getElementById('audioPlayer');
-    player.loop = loopMode;
     updateLoopButton();
     setStatus(loopMode ? 'Loop enabled' : 'Loop disabled');
 }
@@ -749,22 +807,35 @@ function updateLoopButton() {
     }
 }
 
-function addToQueue(id) {
-    fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST', headers: { 'Accept': 'application/json' } })
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            throw new Error(body?.error || body || 'Queue failed');
-        }
+async function queueTrack(id, options = {}) {
+    const { silent = false } = options;
+    const response = await fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST', headers: { 'Accept': 'application/json' } });
+    const body = await parseJsonOrText(response);
+    if (!response.ok) {
+        throw new Error(body?.error || body || 'Queue failed');
+    }
+    if (!silent) {
         setStatus(`Added track ${id} to queue`);
-        getQueue();
-    })
-    .catch(error => {
-        setStatus(`Queue error: ${error.message}`);
-    });
+    }
+    return body;
 }
 
-function getQueue() {
+async function queueTracks(ids, options = {}) {
+    for (const id of ids) {
+        await queueTrack(id, options);
+    }
+    await getQueue();
+}
+
+function addToQueue(id) {
+    queueTrack(id)
+        .then(() => getQueue())
+        .catch(error => {
+            setStatus(`Queue error: ${error.message}`);
+        });
+}
+
+async function getQueue() {
     fetch(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
@@ -795,6 +866,11 @@ function getQueue() {
         console.error('getQueue error:', error);
         setStatus(`Queue load error: ${error.message}`);
     });
+}
+
+async function fetchQueueItems() {
+    const data = await safeFetch(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } });
+    return Array.isArray(data) ? data : [];
 }
 
 function playNextFromQueue() {
@@ -849,6 +925,17 @@ function stopPlayback() {
     setStatus('Playback stopped');
 }
 
+async function handleTrackEnd() {
+    if (loopMode && currentLoopTrackIds.length > 0) {
+        const queueItems = await fetchQueueItems();
+        if (queueItems.length === 0) {
+            await queueTracks(currentLoopTrackIds, { silent: true });
+            setStatus('Looping playlist');
+        }
+    }
+    playNextFromQueue();
+}
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
@@ -869,11 +956,9 @@ if ('serviceWorker' in navigator) {
 window.onload = () => {
     const player = document.getElementById('audioPlayer');
     const seekBar = document.getElementById('seekBar');
-    player.loop = loopMode;
+    player.loop = false;
     player.onended = () => {
-        if (!loopMode) {
-            playNextFromQueue();
-        }
+        handleTrackEnd().catch(error => console.error('Track end error:', error));
         setPlayButtonState(false);
     };
     player.ontimeupdate = updateSeekBar;

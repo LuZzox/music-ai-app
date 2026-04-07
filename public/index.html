@@ -162,10 +162,14 @@
                             </section>
 
                             <section class="track-list card playlist-details-card">
-                                <div class="section-header">
+                                <div class="section-header playlist-header">
                                     <div>
                                         <h2>Playlist contents</h2>
                                         <span id="currentPlaylistName">No playlist selected</span>
+                                    </div>
+                                    <div class="playlist-actions">
+                                        <button onclick="playCurrentPlaylist()">▶️ Play All</button>
+                                        <button class="secondary" onclick="queueCurrentPlaylist()">➕ Queue All</button>
                                     </div>
                                 </div>
                                 <ul id="playlistTrackList" class="playlist"></ul>
