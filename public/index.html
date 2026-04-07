@@ -108,7 +108,7 @@
                             <div class="sidebar-group card">
                                 <div class="sidebar-section">
                                     <h2>Upload Track</h2>
-                                    <input type="file" id="musicFiles" accept="audio/*" multiple>
+                                    <input type="file" id="musicFile" accept="audio/*" multiple webkitdirectory onchange="uploadMusic()">
                                     <button onclick="uploadMusic()">⬆️ Upload</button>
                                     <p class="hint">Select an audio file to upload.</p>
                                 </div>

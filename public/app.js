@@ -263,11 +263,9 @@ function loadBackendUrl() {
 function uploadMusic() {
     const fileInput = document.getElementById('musicFile');
     const files = Array.from(fileInput.files || []);
-
-    if (!files.length) {
-        alert('Please select one or more music files or a folder to upload.');
-        return;
-    }
+    files.forEach(file => {
+    formData.append('music', file);
+    });
 
     const formData = new FormData();
     files.forEach(file => {
