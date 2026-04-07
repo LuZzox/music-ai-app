@@ -109,6 +109,34 @@ function resolveApiUrl(path) {
     return base ? `${base.replace(/\/$/, '')}${path}` : path;
 }
 
+function storeOfflineData(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (err) {
+        console.warn('Failed to store offline data', err);
+    }
+}
+
+function loadOfflineData(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+        console.warn('Failed to load offline data', err);
+        return null;
+    }
+}
+
+function saveOfflineUser(user) {
+    if (user) {
+        storeOfflineData('musica-offline-user', user);
+    }
+}
+
+function clearOfflineUser() {
+    localStorage.removeItem('musica-offline-user');
+}
+
 async function parseJsonOrText(response) {
     const text = await response.text();
     try {
@@ -147,6 +175,7 @@ function handleLogin() {
     })
     .then(user => {
         currentUser = user;
+        saveOfflineUser(user);
         document.getElementById('loginEmail').value = '';
         document.getElementById('loginPassword').value = '';
         showApp();
@@ -184,6 +213,7 @@ function handleSignup() {
     })
     .then(user => {
         currentUser = user;
+        saveOfflineUser(user);
         document.getElementById('signupEmail').value = '';
         document.getElementById('signupPassword').value = '';
         document.getElementById('signupName').value = '';
@@ -202,6 +232,7 @@ function handleLogout() {
     fetch(resolveApiUrl('/logout'), { method: 'POST' })
     .then(() => {
         currentUser = null;
+        clearOfflineUser();
         document.getElementById('musicFile').value = '';
         showAuth();
     })
@@ -227,10 +258,23 @@ function checkAuth() {
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok || !body || !body.authenticated) {
+            const cachedUser = loadOfflineData('musica-offline-user');
+            if (cachedUser) {
+                currentUser = cachedUser;
+                loadBackendUrl();
+                showApp();
+                getMp3Files();
+                getQueue();
+                getPlaylists();
+                searchAllTracks();
+                setStatus('Offline mode: showing cached content');
+                return;
+            }
             showAuth();
             return;
         }
         currentUser = body.user;
+        saveOfflineUser(body.user);
         loadBackendUrl();
         showApp();
         getMp3Files();
@@ -239,6 +283,18 @@ function checkAuth() {
         searchAllTracks();
     })
     .catch(() => {
+        const cachedUser = loadOfflineData('musica-offline-user');
+        if (cachedUser) {
+            currentUser = cachedUser;
+            loadBackendUrl();
+            showApp();
+            getMp3Files();
+            getQueue();
+            getPlaylists();
+            searchAllTracks();
+            setStatus('Offline mode: showing cached content');
+            return;
+        }
         showAuth();
     });
 }
@@ -305,21 +361,36 @@ async function uploadMusic() {
     setStatus('All files uploaded safely!');
 }
 async function safeFetch(url, options = {}) {
+    const { cacheKey } = options;
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
-            const body = await response.text(); // or parse JSON if you prefer
+            const body = await response.text();
             throw new Error(`Server returned ${response.status}: ${body}`);
         }
-        // Try to parse JSON, fallback to text
         const contentType = response.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
-            return await response.json();
+            const data = await response.json();
+            if (cacheKey) {
+                storeOfflineData(cacheKey, data);
+            }
+            return data;
         } else {
-            return await response.text();
+            const text = await response.text();
+            if (cacheKey) {
+                storeOfflineData(cacheKey, text);
+            }
+            return text;
         }
     } catch (err) {
         console.error(`Error fetching ${url}:`, err);
+        if (cacheKey) {
+            const cached = loadOfflineData(cacheKey);
+            if (cached !== null) {
+                setStatus(`Offline mode: showing cached data`);
+                return cached;
+            }
+        }
         setStatus(`Server error: ${err.message}`);
         return null;
     }
@@ -328,7 +399,7 @@ async function safeFetch(url, options = {}) {
 async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZE) {
     currentLibraryPage = Math.max(1, page);
     try {
-        const allFiles = await safeFetch(resolveApiUrl('/mp3_files'));
+        const allFiles = await safeFetch(resolveApiUrl('/mp3_files'), { cacheKey: 'musica-offline-tracks' });
         if (!allFiles || !Array.isArray(allFiles)) throw new Error('Invalid response format');
 
         const totalItems = allFiles.length;
@@ -521,8 +592,14 @@ function getPlaylists() {
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
+            const cached = loadOfflineData('musica-offline-playlists');
+            if (cached) {
+                setStatus('Offline mode: showing cached playlists');
+                return cached;
+            }
             throw new Error(body?.error || body || 'Failed to load playlists');
         }
+        storeOfflineData('musica-offline-playlists', body);
         return body;
     })
     .then(data => {
@@ -616,8 +693,14 @@ function loadPlaylistDetails(id, name) {
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
+            const cached = loadOfflineData(`musica-offline-playlist-${id}`);
+            if (cached) {
+                setStatus('Offline mode: showing cached playlist');
+                return cached;
+            }
             throw new Error(body?.error || body || 'Failed to load playlist');
         }
+        storeOfflineData(`musica-offline-playlist-${id}`, body);
         return body;
     })
     .then(data => {
@@ -888,8 +971,14 @@ async function getQueue() {
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
+            const cached = loadOfflineData('musica-offline-queue');
+            if (cached) {
+                setStatus('Offline mode: showing cached queue');
+                return cached;
+            }
             throw new Error(body?.error || body || 'Queue load failed');
         }
+        storeOfflineData('musica-offline-queue', body);
         if (!Array.isArray(body)) {
             console.error('Expected array, got:', body);
             throw new Error('Invalid response format: expected array of queue items');
