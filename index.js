@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
 // Check for placeholder cluster name
 if (mongoUri.includes('cluster0.mongodb.net')) {
   console.warn('⚠️  WARNING: Using cluster0.mongodb.net placeholder.');
-
+}
 mongoose.set('strictQuery', false);
 
 // Handle connection state changes
