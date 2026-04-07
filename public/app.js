@@ -262,15 +262,24 @@ function loadBackendUrl() {
 
 function uploadMusic() {
     const fileInput = document.getElementById('musicFile');
-    const file = fileInput.files[0];
+    const files = Array.from(fileInput.files || []);
 
-    if (!file) {
-        alert('Please select a music file to upload.');
+    if (!files.length) {
+        alert('Please select one or more music files or a folder to upload.');
         return;
     }
 
     const formData = new FormData();
-    formData.append('music', file);
+    files.forEach(file => {
+        if (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3')) {
+            formData.append('music', file);
+        }
+    });
+
+    if (!formData.has('music')) {
+        alert('No valid audio files found in your selection.');
+        return;
+    }
 
     fetch(resolveApiUrl('/upload'), {
         method: 'POST',
@@ -289,7 +298,8 @@ function uploadMusic() {
     })
     .then(data => {
         fileInput.value = '';
-        setStatus(`Uploaded: ${data.fileName}`);
+        const message = data.uploaded && data.uploaded.length > 0 ? `Uploaded ${data.uploaded.length} files` : 'Upload complete';
+        setStatus(message);
         getMp3Files();
         getQueue();
     })

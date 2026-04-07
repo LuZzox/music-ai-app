@@ -377,6 +377,18 @@ audio {
 .player-card {
     display: grid;
     gap: 18px;
+    max-width: 980px;
+    margin-inline: auto;
+    justify-self: center;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    padding: 32px 24px;
+    min-height: 130px;
 }
 
 audio {

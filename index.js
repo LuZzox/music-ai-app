@@ -330,42 +330,48 @@ app.post('/mp3_files', ensureAuthenticated, (req, res) => {
   res.status(201).send(`MP3 file added: ${mp3File.fileName}`);
 });
 
-app.post('/upload', ensureAuthenticated, requireDatabase, upload.single('music'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+app.post('/upload', ensureAuthenticated, requireDatabase, upload.array('music'), async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) {
+    return res.status(400).json({ error: 'No files uploaded' });
   }
 
-  const fileName = req.file.originalname;
-  const fileData = req.file.buffer;
-  const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
+  const uploaded = [];
+  const skipped = [];
 
-  try {
-    const existing = await Mp3FileModel.findOne({ userId: req.session.userId, $or: [{ fileHash }, { fileName }] });
-    if (existing) {
-      return res.status(409).json({ error: 'Duplicate track found: same file name or same file content' });
+  for (const file of files) {
+    const fileName = file.originalname;
+    const fileData = file.buffer;
+    const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
+
+    try {
+      const existing = await Mp3FileModel.findOne({ userId: req.session.userId, $or: [{ fileHash }, { fileName }] });
+      if (existing) {
+        skipped.push(fileName);
+        continue;
+      }
+
+      const cover = await parseCoverDataFromBuffer(fileData, file.mimetype);
+      const mp3Document = new Mp3FileModel({
+        fileName,
+        fileData,
+        fileHash,
+        coverData: cover.coverData,
+        coverMime: cover.coverMime,
+        uploaderEmail: req.session.userEmail,
+        uploaderName: req.session.displayName || req.session.userEmail,
+        userId: req.session.userId
+      });
+      await mp3Document.save();
+      const mp3File = new Mp3FileItem(mp3Document._id, fileName);
+      queue.addMp3File(req.session.userId, mp3File);
+      uploaded.push(fileName);
+    } catch (err) {
+      skipped.push(`${fileName} (error: ${err.message})`);
     }
-
-    const cover = await parseCoverDataFromBuffer(fileData, req.file.mimetype);
-
-    const mp3Document = new Mp3FileModel({
-      fileName,
-      fileData,
-      fileHash,
-      coverData: cover.coverData,
-      coverMime: cover.coverMime,
-      uploaderEmail: req.session.userEmail,
-      uploaderName: req.session.displayName || req.session.userEmail,
-      userId: req.session.userId
-    });
-    await mp3Document.save();
-
-    const mp3File = new Mp3FileItem(mp3Document._id, fileName);
-    queue.addMp3File(req.session.userId, mp3File);
-
-    res.status(201).json({ id: mp3Document._id, fileName });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
+
+  res.status(201).json({ uploaded, skipped });
 });
 
 app.delete('/mp3_files/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
