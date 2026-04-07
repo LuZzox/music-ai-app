@@ -10,20 +10,14 @@ const app = express();
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-
-const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/musicify';
-
 // Warn if using default local connection in production environment
 if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
   console.warn('⚠️  WARNING: No MONGODB_URI set. Using default local MongoDB.');
-  console.warn('⚠️  Set MONGODB_URI environment variable to connect to MongoDB Atlas.');
 }
 
 // Check for placeholder cluster name
 if (mongoUri.includes('cluster0.mongodb.net')) {
   console.warn('⚠️  WARNING: Using cluster0.mongodb.net placeholder.');
-  console.warn('⚠️  Replace cluster0 with your actual MongoDB Atlas cluster name.');
-}
 
 mongoose.set('strictQuery', false);
 
@@ -50,19 +44,19 @@ mongoose.connection.on('disconnected', () => {
   console.warn('⚠️  Disconnected from MongoDB');
 });
 
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 15000,
-  socketTimeoutMS: 45000,
-  family: 4,
-  retryWrites: true
-}).catch(err => {
-  // Log initial connection error but don't crash
-  console.error('✗ Initial MongoDB connection failed:');
-  console.error(`  Error: ${err.message}`);
-});
+mongoose.connect(mongoUri)
+  .then(async () => {
+    console.log('✅ MongoDB connecté');
 
+    // 🔥 INDEX ICI (au bon moment)
+    await Mp3FileModel.collection.createIndex({ createdAt: -1 });
+    await Mp3FileModel.collection.createIndex({ fileName: "text" });
+
+    console.log('✅ Index créés');
+  })
+  .catch(err => {
+    console.error('❌ MongoDB erreur:', err);
+  });
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
   passwordHash: { type: String, required: true },
@@ -425,16 +419,15 @@ app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
     const query = (req.query.q || '').trim();
 
     const match = query
-      ? { fileName: { $regex: query, $options: 'i' } }
+      ? { $text: { $search: query } } // 🔥 plus rapide que regex
       : {};
 
     const rows = await Mp3FileModel.aggregate([
       { $match: match },
       { $sort: { createdAt: -1 } },
       { $limit: 120 }
-    ], {
-      allowDiskUse: true
-    });
+    ])
+    .allowDiskUse(true); // ✅ FIX ERREUR MÉMOIRE
 
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
 
