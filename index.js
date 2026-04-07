@@ -7,7 +7,8 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const mm = require('music-metadata');
 const app = express();
-
+// Définir mongoUri à partir de la variable d'environnement ou fallback local
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/music-app';
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 // Warn if using default local connection in production environment
