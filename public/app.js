@@ -260,51 +260,49 @@ function loadBackendUrl() {
     }
 }
 
-function uploadMusic() {
+async function uploadMusic() {
     const fileInput = document.getElementById('musicFile');
     const files = Array.from(fileInput.files || []);
 
-    const formData = new FormData();
+    // Filter only valid audio files
+    const audioFiles = files.filter(file => file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3'));
 
-    files.forEach(file => {
-        // Only accept audio files or .mp3
-        if (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3')) {
-            formData.append('music', file);
-        }
-    });
-
-    if (!formData.has('music')) {
+    if (audioFiles.length === 0) {
         alert('No valid audio files found in your selection.');
         return;
     }
 
-    fetch(resolveApiUrl('/upload'), {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'Accept': 'application/json'
+    const CHUNK_SIZE = 5; // number of files per batch
+    for (let i = 0; i < audioFiles.length; i += CHUNK_SIZE) {
+        const chunk = audioFiles.slice(i, i + CHUNK_SIZE);
+        const formData = new FormData();
+        chunk.forEach(file => formData.append('music', file));
+
+        try {
+            const response = await fetch(resolveApiUrl('/upload'), {
+                method: 'POST',
+                body: formData,
+                headers: { 'Accept': 'application/json' }
+            });
+            const body = await parseJsonOrText(response);
+
+            if (!response.ok) {
+                const message = body && body.error ? body.error : body;
+                throw new Error(message || 'Upload failed');
+            }
+
+            setStatus(`Uploaded ${chunk.length} files (batch ${Math.floor(i / CHUNK_SIZE) + 1})`);
+        } catch (error) {
+            setStatus(`Upload error in batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${error.message}`);
+            return; // stop further uploads if one batch fails
         }
-    })
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            const message = body && body.error ? body.error : body;
-            throw new Error(message || 'Upload failed');
-        }
-        return body;
-    })
-    .then(data => {
-        fileInput.value = '';
-        const message = data.uploaded && data.uploaded.length > 0
-            ? `Uploaded ${data.uploaded.length} files`
-            : 'Upload complete';
-        setStatus(message);
-        getMp3Files();
-        getQueue();
-    })
-    .catch(error => {
-        setStatus(`Upload error: ${error.message}`);
-    });
+    }
+
+    // After all batches complete
+    fileInput.value = '';
+    getMp3Files();
+    getQueue();
+    setStatus('All files uploaded successfully!');
 }
 
 function getMp3Files() {
