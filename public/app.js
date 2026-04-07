@@ -263,16 +263,14 @@ function loadBackendUrl() {
 async function uploadMusic() {
     const fileInput = document.getElementById('musicFile');
     const files = Array.from(fileInput.files || []);
-
-    // Filter only valid audio files
     const audioFiles = files.filter(file => file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3'));
 
     if (audioFiles.length === 0) {
-        alert('No valid audio files found in your selection.');
+        alert('No valid audio files found.');
         return;
     }
 
-    const CHUNK_SIZE = 5; // number of files per batch
+    const CHUNK_SIZE = 3; // very safe for Render free tier
     for (let i = 0; i < audioFiles.length; i += CHUNK_SIZE) {
         const chunk = audioFiles.slice(i, i + CHUNK_SIZE);
         const formData = new FormData();
@@ -284,25 +282,24 @@ async function uploadMusic() {
                 body: formData,
                 headers: { 'Accept': 'application/json' }
             });
-            const body = await parseJsonOrText(response);
 
+            const body = await parseJsonOrText(response);
             if (!response.ok) {
                 const message = body && body.error ? body.error : body;
                 throw new Error(message || 'Upload failed');
             }
 
-            setStatus(`Uploaded ${chunk.length} files (batch ${Math.floor(i / CHUNK_SIZE) + 1})`);
+            setStatus(`Uploaded batch ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} files)`);
         } catch (error) {
-            setStatus(`Upload error in batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${error.message}`);
-            return; // stop further uploads if one batch fails
+            setStatus(`Error uploading batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${error.message}`);
+            return;
         }
     }
 
-    // After all batches complete
     fileInput.value = '';
     getMp3Files();
     getQueue();
-    setStatus('All files uploaded successfully!');
+    setStatus('All files uploaded safely!');
 }
 
 function getMp3Files() {
