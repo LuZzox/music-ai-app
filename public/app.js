@@ -18,8 +18,40 @@ function updateNowPlaying(meta = {}) {
     currentTrackMeta = meta;
     document.getElementById('nowPlayingTitle').textContent = meta.title || 'No track selected';
     document.getElementById('nowPlayingSubtitle').textContent = meta.subtitle || 'Search shared music or play from your library.';
-    document.getElementById('playerCover').textContent = meta.cover || '♫';
+    applyCoverToElement(document.getElementById('playerCover'), meta.title, meta.coverUrl);
     setStatus(meta.status || 'Ready to play');
+}
+
+function getCoverLetter(title) {
+    if (!title) return '♫';
+    return title.trim().charAt(0).toUpperCase();
+}
+
+function getCoverColors(title) {
+    const base = title?.trim().toUpperCase().charCodeAt(0) || 65;
+    const hue = base * 19 % 360;
+    return [`hsl(${hue}, 78%, 46%)`, `hsl(${(hue + 40) % 360}, 74%, 46%)`];
+}
+
+function applyCoverToElement(element, title, coverUrl) {
+    if (!element) return;
+    element.style.backgroundImage = '';
+    element.style.backgroundSize = 'cover';
+    element.style.backgroundPosition = 'center';
+    element.style.color = '#fff';
+    element.style.display = 'grid';
+    element.style.placeItems = 'center';
+    element.style.fontWeight = '700';
+    element.style.letterSpacing = '0.08em';
+    element.style.textTransform = 'uppercase';
+    if (coverUrl) {
+        element.textContent = '';
+        element.style.backgroundImage = `url(${coverUrl})`;
+    } else {
+        const [start, end] = getCoverColors(title);
+        element.textContent = getCoverLetter(title);
+        element.style.backgroundImage = `linear-gradient(135deg, ${start} 0%, ${end} 100%)`;
+    }
 }
 
 function updateSeekBar() {
@@ -32,15 +64,36 @@ function updateSeekBar() {
     document.getElementById('durationTime').textContent = formatDuration(player.duration || 0);
 }
 
+function setPlayButtonState(isPlaying) {
+    const button = document.getElementById('playPauseBtn');
+    if (button) {
+        button.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
+    }
+}
+
+function showTab(name) {
+    const tabs = ['library', 'search', 'playlist'];
+    tabs.forEach(tab => {
+        const panel = document.getElementById(`${tab}Tab`);
+        const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
+        if (panel) panel.classList.toggle('active', tab === name);
+        if (button) button.classList.toggle('active', tab === name);
+    });
+    if (name === 'search') {
+        searchAllTracks();
+    }
+    if (name === 'playlist') {
+        getPlaylists();
+    }
+}
+
 function togglePlayPause() {
     const player = document.getElementById('audioPlayer');
-    const button = document.getElementById('playPauseBtn');
     if (player.paused) {
-        player.play().catch(err => setStatus(`Playback failed: ${err.message}`));
-        button.textContent = 'Pause';
+        player.play().then(() => setPlayButtonState(true)).catch(err => setStatus(`Playback failed: ${err.message}`));
     } else {
         player.pause();
-        button.textContent = 'Play';
+        setPlayButtonState(false);
     }
 }
 
@@ -268,7 +321,7 @@ function getMp3Files() {
 
             const thumb = document.createElement('div');
             thumb.className = 'track-thumb';
-            thumb.textContent = mp3.file_name.charAt(0).toUpperCase();
+            applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
 
             const meta = document.createElement('div');
             meta.className = 'track-meta';
@@ -282,21 +335,21 @@ function getMp3Files() {
             meta.appendChild(subtitle);
 
             const playButton = document.createElement('button');
-            playButton.textContent = 'Play';
+            playButton.textContent = '▶️ Play';
             playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Your library');
 
             const queueButton = document.createElement('button');
-            queueButton.textContent = 'Queue';
+            queueButton.textContent = '➕ Queue';
             queueButton.className = 'queue-button';
             queueButton.onclick = () => addToQueue(mp3.id);
 
             const playlistButton = document.createElement('button');
-            playlistButton.textContent = 'Add to playlist';
+            playlistButton.textContent = '🎧 Add to playlist';
             playlistButton.className = 'secondary';
             playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
 
             const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Delete';
+            deleteButton.textContent = '❌ Delete';
             deleteButton.className = 'delete-button';
             deleteButton.onclick = () => deleteMp3(mp3.id);
 
@@ -357,7 +410,7 @@ function renderSearchResults(data) {
 
         const thumb = document.createElement('div');
         thumb.className = 'track-thumb';
-        thumb.textContent = mp3.file_name.charAt(0).toUpperCase();
+        applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
 
         const meta = document.createElement('div');
         meta.className = 'track-meta';
@@ -371,11 +424,11 @@ function renderSearchResults(data) {
         meta.appendChild(subtitle);
 
         const playButton = document.createElement('button');
-        playButton.textContent = 'Play';
+        playButton.textContent = '▶️ Play';
         playButton.onclick = () => playMp3(mp3.id, mp3.file_name, subtitle.textContent);
 
         const queueButton = document.createElement('button');
-        queueButton.textContent = 'Queue';
+        queueButton.textContent = '➕ Queue';
         queueButton.className = 'queue-button';
         queueButton.onclick = () => addToQueue(mp3.id);
 
@@ -386,7 +439,7 @@ function renderSearchResults(data) {
 
         if (!mp3.owned) {
             const importButton = document.createElement('button');
-            importButton.textContent = 'Import';
+            importButton.textContent = '📥 Import';
             importButton.className = 'secondary';
             importButton.onclick = () => importTrack(mp3.id);
             actions.appendChild(importButton);
@@ -521,6 +574,9 @@ function renderPlaylistTracks(tracks) {
     tracks.forEach(mp3 => {
         const li = document.createElement('li');
         li.className = 'track-item';
+        const thumb = document.createElement('div');
+        thumb.className = 'track-thumb';
+        applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
         const meta = document.createElement('div');
         meta.style.minWidth = '0';
 
@@ -536,16 +592,16 @@ function renderPlaylistTracks(tracks) {
         actions.className = 'track-actions';
 
         const playButton = document.createElement('button');
-        playButton.textContent = 'Play';
+        playButton.textContent = '▶️ Play';
         playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Playlist');
 
         const queueButton = document.createElement('button');
-        queueButton.textContent = 'Queue';
+        queueButton.textContent = '➕ Queue';
         queueButton.className = 'queue-button';
         queueButton.onclick = () => addToQueue(mp3.id);
 
         const removeButton = document.createElement('button');
-        removeButton.textContent = 'Remove';
+        removeButton.textContent = '🚫 Remove';
         removeButton.className = 'delete-button';
         removeButton.onclick = () => removeFromPlaylist(currentPlaylistId, mp3.id);
 
@@ -553,6 +609,7 @@ function renderPlaylistTracks(tracks) {
         actions.appendChild(queueButton);
         actions.appendChild(removeButton);
 
+        li.appendChild(thumb);
         li.appendChild(meta);
         li.appendChild(actions);
         list.appendChild(li);
@@ -609,8 +666,9 @@ function playMp3(id, title = '', subtitle = '') {
     currentTrackId = id;
     player.src = resolveApiUrl(`/play/${id}`);
     player.load();
-    player.play().catch(error => {
+    player.play().then(() => setPlayButtonState(true)).catch(error => {
         setStatus(`Playback error: ${error.message}`);
+        setPlayButtonState(false);
     });
     updateNowPlaying({ title: title || `Track ${id}`, subtitle: subtitle || 'Playing now', cover: title ? title.charAt(0).toUpperCase() : '♫', status: `Playing ${title || id}` });
 }
@@ -798,9 +856,12 @@ window.onload = () => {
         if (!loopMode) {
             playNextFromQueue();
         }
+        setPlayButtonState(false);
     };
     player.ontimeupdate = updateSeekBar;
     player.onloadedmetadata = updateSeekBar;
+    player.onplay = () => setPlayButtonState(true);
+    player.onpause = () => setPlayButtonState(false);
     if (seekBar) {
         seekBar.oninput = (event) => {
             player.currentTime = Number(event.target.value);
@@ -808,5 +869,6 @@ window.onload = () => {
         };
     }
     updateLoopButton();
+    showTab('library');
     checkAuth();
 };

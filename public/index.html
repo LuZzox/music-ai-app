@@ -68,11 +68,11 @@
                                 <p id="nowPlayingSubtitle">Search shared music or play from your library.</p>
                             </div>
                         </div>
-                        <audio id="audioPlayer" controls></audio>
+                        <audio id="audioPlayer"></audio>
                         <div class="player-controls">
-                            <button class="secondary" onclick="playPrevFromQueue()">Prev</button>
-                            <button onclick="togglePlayPause()" id="playPauseBtn">Play</button>
-                            <button class="secondary" onclick="playNextFromQueue()">Next</button>
+                            <button class="secondary" onclick="playPrevFromQueue()">⏮️ Prev</button>
+                            <button onclick="togglePlayPause()" id="playPauseBtn">▶️ Play</button>
+                            <button class="secondary" onclick="playNextFromQueue()">⏭️ Next</button>
                         </div>
                         <div class="progress-row">
                             <span id="currentTime">0:00</span>
@@ -81,74 +81,92 @@
                         </div>
                         <div class="player-status-row">
                             <span id="playerStatus">Ready to play</span>
-                            <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
-                        </div>
-                        <div class="sidebar-section playlist-manager">
-                            <h2>Playlists</h2>
-                            <div class="playlist-create">
-                                <input type="text" id="playlistName" placeholder="New playlist name">
-                                <button onclick="createPlaylist()">Create</button>
-                            </div>
-                            <ul id="playlistsList" class="playlist-list"></ul>
+                            <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">🔁 Loop Off</button>
                         </div>
                         <div class="sidebar-section">
                             <div class="player-header">
                                 <span>Playback queue</span>
                             </div>
                             <div class="queue-controls">
-                                <button onclick="shuffleQueue()">Shuffle</button>
-                                <button class="secondary" onclick="stopPlayback()">Stop</button>
+                                <button onclick="shuffleQueue()">🔀 Shuffle</button>
+                                <button class="secondary" onclick="stopPlayback()">⏹️ Stop</button>
                             </div>
                             <ul id="queueList" class="queue-list"></ul>
                         </div>
                     </div>
-
-                    <div class="sidebar-group card">
-                        <div class="sidebar-section">
-                            <h2>Upload Track</h2>
-                            <input type="file" id="musicFile" accept="audio/*">
-                            <button onclick="uploadMusic()">Upload</button>
-                        </div>
-
-                        <div class="sidebar-section">
-                            <h2>Backend URL</h2>
-                            <input type="url" id="backendUrl" placeholder="https://example.com" />
-                            <button onclick="saveBackendUrl()">Set backend</button>
-                            <p class="hint">Use this when the app is wrapped or deployed separately.</p>
-                        </div>
-                    </div>
                 </div>
 
-                <div class="card-row">
-                    <section class="track-list card">
-                        <div class="section-header">
-                            <h2>Saved Tracks</h2>
-                        </div>
-                        <ul id="mp3List" class="playlist"></ul>
-                    </section>
-
-                    <section class="track-list card">
-                        <div class="section-header search-header">
-                            <div>
-                                <h2>Shared Library</h2>
-                                <p>Search all user-uploaded tracks in the shared music database.</p>
-                            </div>
-                            <div class="search-row">
-                                <input type="text" id="searchInput" placeholder="Search shared tracks">
-                                <button onclick="searchAllTracks()">Search</button>
-                            </div>
-                        </div>
-                        <ul id="searchResults" class="playlist"></ul>
-                    </section>
+                <div class="tabs">
+                    <button class="tab-btn active" id="tabLibraryBtn" onclick="showTab('library')">🎵 Library</button>
+                    <button class="tab-btn" id="tabSearchBtn" onclick="showTab('search')">🔎 Search</button>
+                    <button class="tab-btn" id="tabPlaylistBtn" onclick="showTab('playlist')">📁 Playlists</button>
                 </div>
 
-                <div class="card-row">
-                    <section class="track-list card playlist-details-card">
-                        <div class="section-header">
-                            <h2>Playlist contents</h2>
-                            <span id="currentPlaylistName">No playlist selected</span>
+                <div class="tab-content">
+                    <section id="libraryTab" class="tab-panel active">
+                        <div class="card-row">
+                            <div class="sidebar-group card">
+                                <div class="sidebar-section">
+                                    <h2>Upload Track</h2>
+                                    <input type="file" id="musicFile" accept="audio/*">
+                                    <button onclick="uploadMusic()">⬆️ Upload</button>
+                                </div>
+                                <div class="sidebar-section">
+                                    <h2>Backend URL</h2>
+                                    <input type="url" id="backendUrl" placeholder="https://example.com" />
+                                    <button onclick="saveBackendUrl()">Set backend</button>
+                                    <p class="hint">Use this when the app is wrapped or deployed separately.</p>
+                                </div>
+                            </div>
+
+                            <section class="track-list card">
+                                <div class="section-header">
+                                    <h2>Saved Tracks</h2>
+                                </div>
+                                <ul id="mp3List" class="playlist"></ul>
+                            </section>
                         </div>
-                        <ul id="playlistTrackList" class="playlist"></ul>
+                    </section>
+
+                    <section id="searchTab" class="tab-panel">
+                        <section class="track-list card">
+                            <div class="section-header search-header">
+                                <div>
+                                    <h2>Shared Library</h2>
+                                    <p>Search all user-uploaded tracks in the shared music database.</p>
+                                </div>
+                                <div class="search-row">
+                                    <input type="text" id="searchInput" placeholder="Search shared tracks">
+                                    <button onclick="searchAllTracks()">🔎 Search</button>
+                                </div>
+                            </div>
+                            <ul id="searchResults" class="playlist"></ul>
+                        </section>
+                    </section>
+
+                    <section id="playlistTab" class="tab-panel">
+                        <div class="card-row">
+                            <section class="track-list card">
+                                <div class="section-header">
+                                    <h2>Your Playlists</h2>
+                                </div>
+                                <div class="playlist-create">
+                                    <input type="text" id="playlistName" placeholder="New playlist name">
+                                    <button onclick="createPlaylist()">➕ Create</button>
+                                </div>
+                                <ul id="playlistsList" class="playlist-list"></ul>
+                            </section>
+
+                            <section class="track-list card playlist-details-card">
+                                <div class="section-header">
+                                    <div>
+                                        <h2>Playlist contents</h2>
+                                        <span id="currentPlaylistName">No playlist selected</span>
+                                    </div>
+                                </div>
+                                <ul id="playlistTrackList" class="playlist"></ul>
+                            </section>
+                        </div>
                     </section>
                 </div>
             </div>

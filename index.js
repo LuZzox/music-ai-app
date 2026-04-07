@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const mm = require('music-metadata');
 const app = express();
 
 const storage = multer.memoryStorage();
@@ -73,6 +74,8 @@ const mp3FileSchema = new mongoose.Schema({
   fileName: String,
   fileData: Buffer,
   fileHash: String,
+  coverData: Buffer,
+  coverMime: String,
   uploaderEmail: String,
   uploaderName: String,
   createdAt: { type: Date, default: Date.now },
@@ -210,6 +213,31 @@ function requireDatabase(req, res, next) {
   });
 }
 
+async function parseCoverDataFromBuffer(buffer, mimeType) {
+  try {
+    const metadata = await mm.parseBuffer(buffer, mimeType, { duration: true });
+    const picture = metadata.common?.picture?.[0];
+    if (picture && picture.data && picture.format) {
+      return { coverData: picture.data, coverMime: picture.format };
+    }
+  } catch (err) {
+    console.warn('MP3 metadata parse failed:', err.message);
+  }
+  return {};
+}
+
+function mapTrack(row, userId) {
+  return {
+    id: row._id,
+    file_name: row.fileName,
+    coverUrl: row.coverData ? `/cover/${row._id}` : null,
+    uploaderEmail: row.uploaderEmail,
+    uploaderName: row.uploaderName,
+    owned: row.userId.toString() === userId.toString(),
+    created_at: row.createdAt
+  };
+}
+
 app.post('/signup', requireDatabase, async (req, res) => {
   const { email, password, displayName } = req.body;
   if (!email || !password) {
@@ -291,7 +319,7 @@ module.exports = { Queue, Player, MusicManager, app };
 app.get('/mp3_files', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const rows = await Mp3FileModel.find({ userId: req.session.userId }).sort({ createdAt: -1 });
-    res.json(rows.map(row => ({ id: row._id, file_name: row.fileName, created_at: row.createdAt })));
+    res.json(rows.map(row => mapTrack(row, req.session.userId)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -317,10 +345,14 @@ app.post('/upload', ensureAuthenticated, requireDatabase, upload.single('music')
       return res.status(409).json({ error: 'Duplicate track found: same file name or same file content' });
     }
 
+    const cover = await parseCoverDataFromBuffer(fileData, req.file.mimetype);
+
     const mp3Document = new Mp3FileModel({
       fileName,
       fileData,
       fileHash,
+      coverData: cover.coverData,
+      coverMime: cover.coverMime,
       uploaderEmail: req.session.userEmail,
       uploaderName: req.session.displayName || req.session.userEmail,
       userId: req.session.userId
@@ -363,18 +395,25 @@ app.get('/play/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   }
 });
 
+app.get('/cover/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const row = await Mp3FileModel.findById(req.params.id);
+    if (!row || !row.coverData || !row.coverMime) {
+      return res.status(404).json({ error: 'Cover not found' });
+    }
+    res.setHeader('Content-Type', row.coverMime);
+    res.send(row.coverData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const query = (req.query.q || '').trim();
     const filter = query ? { fileName: { $regex: query, $options: 'i' } } : {};
     const rows = await Mp3FileModel.find(filter).sort({ createdAt: -1 }).limit(120);
-    res.json(rows.map(row => ({
-      id: row._id,
-      file_name: row.fileName,
-      uploaderEmail: row.uploaderEmail,
-      owned: row.userId.toString() === req.session.userId.toString(),
-      created_at: row.createdAt
-    })));
+    res.json(rows.map(row => mapTrack(row, req.session.userId)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -400,6 +439,8 @@ app.post('/import/:id', ensureAuthenticated, requireDatabase, async (req, res) =
       fileName: source.fileName,
       fileData: source.fileData,
       fileHash: source.fileHash,
+      coverData: source.coverData,
+      coverMime: source.coverMime,
       uploaderEmail: req.session.userEmail,
       uploaderName: req.session.displayName || req.session.userEmail,
       userId: req.session.userId
@@ -443,7 +484,7 @@ app.get('/playlists/:id', ensureAuthenticated, requireDatabase, async (req, res)
       return res.status(404).json({ error: 'Playlist not found' });
     }
     const tracks = await Mp3FileModel.find({ _id: { $in: playlist.trackIds } });
-    res.json({ id: playlist._id, name: playlist.name, tracks: tracks.map(row => ({ id: row._id, file_name: row.fileName })) });
+    res.json({ id: playlist._id, name: playlist.name, tracks: tracks.map(row => mapTrack(row, req.session.userId)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
