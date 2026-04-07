@@ -426,8 +426,7 @@ app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
       { $match: match },
       { $sort: { createdAt: -1 } },
       { $limit: 120 }
-    ])
-    .allowDiskUse(true); // ✅ FIX ERREUR MÉMOIRE
+    ], { allowDiskUse: true }); // ✅ FIX ERREUR MÉMOIRE
 
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
 
