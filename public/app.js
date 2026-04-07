@@ -301,6 +301,26 @@ async function uploadMusic() {
     getQueue();
     setStatus('All files uploaded safely!');
 }
+async function safeFetch(url, options = {}) {
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const body = await response.text(); // or parse JSON if you prefer
+            throw new Error(`Server returned ${response.status}: ${body}`);
+        }
+        // Try to parse JSON, fallback to text
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            return await response.json();
+        } else {
+            return await response.text();
+        }
+    } catch (err) {
+        console.error(`Error fetching ${url}:`, err);
+        setStatus(`Server error: ${err.message}`);
+        return null;
+    }
+}
 
 async function getMp3Files(page = 1, perPage = 10) {
     try {
