@@ -302,24 +302,24 @@ async function uploadMusic() {
     setStatus('All files uploaded safely!');
 }
 
-function getMp3Files() {
-    fetch(resolveApiUrl('/mp3_files'))
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            throw new Error(body?.error || body || 'Failed to load tracks');
-        }
-        if (!Array.isArray(body)) {
-            console.error('Expected array, got:', body);
-            throw new Error('Invalid response format: expected array of tracks');
-        }
-        return body;
-    })
-    .then(data => {
+async function getMp3Files(page = 1, perPage = 10) {
+    try {
+        const allFiles = await safeFetch(resolveApiUrl('/mp3_files'));
+        if (!allFiles || !Array.isArray(allFiles)) throw new Error('Invalid response format');
+
+        const start = (page - 1) * perPage;
+        const end = start + perPage;
+        const paginatedFiles = allFiles.slice(start, end);
+
         const list = document.getElementById('mp3List');
         list.innerHTML = '';
-        if (data && Array.isArray(data)) {
-            data.forEach(mp3 => {
+
+        if (paginatedFiles.length === 0) {
+            list.innerHTML = '<li style="padding: 20px; text-align: center; color: #999;">No tracks yet</li>';
+            return;
+        }
+
+        paginatedFiles.forEach(mp3 => {
             const li = document.createElement('li');
             li.className = 'track-item';
 
@@ -329,12 +329,10 @@ function getMp3Files() {
 
             const meta = document.createElement('div');
             meta.className = 'track-meta';
-
             const title = document.createElement('span');
-            title.textContent = `${mp3.file_name}`;
+            title.textContent = mp3.file_name;
             const subtitle = document.createElement('small');
             subtitle.textContent = `Track ${mp3.id}`;
-
             meta.appendChild(title);
             meta.appendChild(subtitle);
 
@@ -342,43 +340,33 @@ function getMp3Files() {
             playButton.textContent = '▶️ Play';
             playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Your library');
 
-            const queueButton = document.createElement('button');
-            queueButton.textContent = '➕ Queue';
-            queueButton.className = 'queue-button';
-            queueButton.onclick = () => addToQueue(mp3.id);
-
-            const playlistButton = document.createElement('button');
-            playlistButton.textContent = '🎧 Add to playlist';
-            playlistButton.className = 'secondary';
-            playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
-
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = '❌ Delete';
-            deleteButton.className = 'delete-button';
-            deleteButton.onclick = () => deleteMp3(mp3.id);
-
             const actions = document.createElement('div');
             actions.className = 'track-actions';
             actions.appendChild(playButton);
-            actions.appendChild(queueButton);
-            actions.appendChild(playlistButton);
-            actions.appendChild(deleteButton);
 
-                li.appendChild(thumb);
-                li.appendChild(meta);
-                li.appendChild(actions);
-                list.appendChild(li);
-            });
-        } else {
-            list.innerHTML = '<li style="padding: 20px; text-align: center; color: #999;">No tracks yet</li>';
+            li.appendChild(thumb);
+            li.appendChild(meta);
+            li.appendChild(actions);
+            list.appendChild(li);
+        });
+
+        // Optional: show simple pagination
+        const pagination = document.getElementById('pagination');
+        if (pagination) {
+            pagination.innerHTML = `
+                <button ${page === 1 ? 'disabled' : ''} onclick="getMp3Files(${page - 1}, ${perPage})">Prev</button>
+                <span>Page ${page}</span>
+                <button ${end >= allFiles.length ? 'disabled' : ''} onclick="getMp3Files(${page + 1}, ${perPage})">Next</button>
+            `;
         }
-    })
-    .catch(error => {
+
+        setStatus(`Loaded ${paginatedFiles.length} tracks`);
+    } catch (error) {
         console.error('getMp3Files error:', error);
-        setStatus(`Load error: ${error.message}`);
         const list = document.getElementById('mp3List');
         list.innerHTML = `<li style="padding: 20px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
-    });
+        setStatus(`Load error: ${error.message}`);
+    }
 }
 
 function searchAllTracks(query) {
