@@ -263,12 +263,11 @@ function loadBackendUrl() {
 function uploadMusic() {
     const fileInput = document.getElementById('musicFile');
     const files = Array.from(fileInput.files || []);
-    files.forEach(file => {
-    formData.append('music', file);
-    });
 
     const formData = new FormData();
+
     files.forEach(file => {
+        // Only accept audio files or .mp3
         if (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3')) {
             formData.append('music', file);
         }
@@ -296,7 +295,9 @@ function uploadMusic() {
     })
     .then(data => {
         fileInput.value = '';
-        const message = data.uploaded && data.uploaded.length > 0 ? `Uploaded ${data.uploaded.length} files` : 'Upload complete';
+        const message = data.uploaded && data.uploaded.length > 0
+            ? `Uploaded ${data.uploaded.length} files`
+            : 'Upload complete';
         setStatus(message);
         getMp3Files();
         getQueue();
