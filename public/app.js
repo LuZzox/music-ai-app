@@ -455,11 +455,17 @@ async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZ
             playlistButton.className = 'secondary';
             playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
 
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '🗑️ Delete';
+            deleteButton.className = 'delete-button';
+            deleteButton.onclick = () => deleteMp3(mp3.id);
+
             const actions = document.createElement('div');
             actions.className = 'track-actions';
             actions.appendChild(playButton);
             actions.appendChild(queueButton);
             actions.appendChild(playlistButton);
+            actions.appendChild(deleteButton);
 
             li.appendChild(thumb);
             li.appendChild(meta);
