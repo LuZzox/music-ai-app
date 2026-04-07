@@ -327,6 +327,7 @@ async function getMp3Files(page = 1, perPage = 10) {
         const allFiles = await safeFetch(resolveApiUrl('/mp3_files'));
         if (!allFiles || !Array.isArray(allFiles)) throw new Error('Invalid response format');
 
+        // Pagination
         const start = (page - 1) * perPage;
         const end = start + perPage;
         const paginatedFiles = allFiles.slice(start, end);
@@ -370,7 +371,7 @@ async function getMp3Files(page = 1, perPage = 10) {
             list.appendChild(li);
         });
 
-        // Optional: show simple pagination
+        // Optional pagination buttons
         const pagination = document.getElementById('pagination');
         if (pagination) {
             pagination.innerHTML = `
@@ -389,24 +390,29 @@ async function getMp3Files(page = 1, perPage = 10) {
     }
 }
 
-function searchAllTracks(query) {
+async function searchAllTracks(query) {
     const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
+    if (!searchValue) {
+        setStatus('Enter a search query');
+        return;
+    }
+
     const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
-    fetch(url)
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            throw new Error(body?.error || body || 'Search failed');
-        }
-        return body;
-    })
-    .then(data => {
+
+    try {
+        const data = await safeFetch(url);
+        if (!data || !Array.isArray(data)) throw new Error('Invalid search response');
+
         renderSearchResults(data);
-    })
-    .catch(error => {
+        setStatus(`Found ${data.length} tracks`);
+    } catch (error) {
         console.error('searchAllTracks error:', error);
         setStatus(`Search error: ${error.message}`);
-    });
+        const list = document.getElementById('searchResults');
+        if (list) {
+            list.innerHTML = `<li style="padding: 18px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
+        }
+    }
 }
 
 function renderSearchResults(data) {
