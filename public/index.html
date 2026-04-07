@@ -59,6 +59,50 @@
 
             <div class="content-grid">
                 <div class="card-row">
+                    <div class="sidebar-group card player-card">
+                        <div class="player-panel">
+                            <div class="player-cover" id="playerCover">♫</div>
+                            <div class="player-meta">
+                                <div class="player-badge">Now Playing</div>
+                                <h2 id="nowPlayingTitle">No track selected</h2>
+                                <p id="nowPlayingSubtitle">Search shared music or play from your library.</p>
+                            </div>
+                        </div>
+                        <audio id="audioPlayer" controls></audio>
+                        <div class="player-controls">
+                            <button class="secondary" onclick="playPrevFromQueue()">Prev</button>
+                            <button onclick="togglePlayPause()" id="playPauseBtn">Play</button>
+                            <button class="secondary" onclick="playNextFromQueue()">Next</button>
+                        </div>
+                        <div class="progress-row">
+                            <span id="currentTime">0:00</span>
+                            <input type="range" id="seekBar" min="0" value="0">
+                            <span id="durationTime">0:00</span>
+                        </div>
+                        <div class="player-status-row">
+                            <span id="playerStatus">Ready to play</span>
+                            <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
+                        </div>
+                        <div class="sidebar-section playlist-manager">
+                            <h2>Playlists</h2>
+                            <div class="playlist-create">
+                                <input type="text" id="playlistName" placeholder="New playlist name">
+                                <button onclick="createPlaylist()">Create</button>
+                            </div>
+                            <ul id="playlistsList" class="playlist-list"></ul>
+                        </div>
+                        <div class="sidebar-section">
+                            <div class="player-header">
+                                <span>Playback queue</span>
+                            </div>
+                            <div class="queue-controls">
+                                <button onclick="shuffleQueue()">Shuffle</button>
+                                <button class="secondary" onclick="stopPlayback()">Stop</button>
+                            </div>
+                            <ul id="queueList" class="queue-list"></ul>
+                        </div>
+                    </div>
+
                     <div class="sidebar-group card">
                         <div class="sidebar-section">
                             <h2>Upload Track</h2>
@@ -73,38 +117,40 @@
                             <p class="hint">Use this when the app is wrapped or deployed separately.</p>
                         </div>
                     </div>
-
-                    <div class="sidebar-group card">
-                        <div class="sidebar-section">
-                            <div class="player-header">
-                                <span>Now playing</span>
-                            </div>
-                            <audio id="audioPlayer" controls></audio>
-                            <p id="playerStatus">No track selected</p>
-                            <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">Loop Off</button>
-                            <p id="loopStatus" class="loop-status">Loop disabled</p>
-                        </div>
-
-                        <div class="sidebar-section">
-                            <div class="player-header">
-                                <span>Playback queue</span>
-                            </div>
-                            <div class="queue-controls">
-                                <button onclick="playPrevFromQueue()">Previous</button>
-                                <button onclick="shuffleQueue()">Shuffle</button>
-                                <button onclick="playNextFromQueue()">Next</button>
-                            </div>
-                            <ul id="queueList" class="queue-list"></ul>
-                        </div>
-                    </div>
                 </div>
 
-                <section class="track-list card">
-                    <div class="section-header">
-                        <h2>Saved Tracks</h2>
-                    </div>
-                    <ul id="mp3List" class="playlist"></ul>
-                </section>
+                <div class="card-row">
+                    <section class="track-list card">
+                        <div class="section-header">
+                            <h2>Saved Tracks</h2>
+                        </div>
+                        <ul id="mp3List" class="playlist"></ul>
+                    </section>
+
+                    <section class="track-list card">
+                        <div class="section-header search-header">
+                            <div>
+                                <h2>Shared Library</h2>
+                                <p>Search all user-uploaded tracks in the shared music database.</p>
+                            </div>
+                            <div class="search-row">
+                                <input type="text" id="searchInput" placeholder="Search shared tracks">
+                                <button onclick="searchAllTracks()">Search</button>
+                            </div>
+                        </div>
+                        <ul id="searchResults" class="playlist"></ul>
+                    </section>
+                </div>
+
+                <div class="card-row">
+                    <section class="track-list card playlist-details-card">
+                        <div class="section-header">
+                            <h2>Playlist contents</h2>
+                            <span id="currentPlaylistName">No playlist selected</span>
+                        </div>
+                        <ul id="playlistTrackList" class="playlist"></ul>
+                    </section>
+                </div>
             </div>
         </main>
     </div>

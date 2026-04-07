@@ -1,9 +1,47 @@
 const DEFAULT_API_BASE = 'https://music-ai-app.onrender.com';
 let API_BASE = DEFAULT_API_BASE;
 let currentUser = null;
+let currentTrackMeta = null;
+let currentPlaylistId = null;
 
 function setStatus(message) {
     document.getElementById('playerStatus').textContent = message;
+}
+
+function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+}
+
+function updateNowPlaying(meta = {}) {
+    currentTrackMeta = meta;
+    document.getElementById('nowPlayingTitle').textContent = meta.title || 'No track selected';
+    document.getElementById('nowPlayingSubtitle').textContent = meta.subtitle || 'Search shared music or play from your library.';
+    document.getElementById('playerCover').textContent = meta.cover || '♫';
+    setStatus(meta.status || 'Ready to play');
+}
+
+function updateSeekBar() {
+    const player = document.getElementById('audioPlayer');
+    const slider = document.getElementById('seekBar');
+    if (!player || !slider) return;
+    slider.max = Math.floor(player.duration || 0);
+    slider.value = Math.floor(player.currentTime || 0);
+    document.getElementById('currentTime').textContent = formatDuration(player.currentTime || 0);
+    document.getElementById('durationTime').textContent = formatDuration(player.duration || 0);
+}
+
+function togglePlayPause() {
+    const player = document.getElementById('audioPlayer');
+    const button = document.getElementById('playPauseBtn');
+    if (player.paused) {
+        player.play().catch(err => setStatus(`Playback failed: ${err.message}`));
+        button.textContent = 'Pause';
+    } else {
+        player.pause();
+        button.textContent = 'Play';
+    }
 }
 
 function getApiBase() {
@@ -58,6 +96,8 @@ function handleLogin() {
         showApp();
         getMp3Files();
         getQueue();
+        getPlaylists();
+        searchAllTracks();
     })
     .catch(error => {
         alert(`Login error: ${error.message}`);
@@ -94,6 +134,8 @@ function handleSignup() {
         showApp();
         getMp3Files();
         getQueue();
+        getPlaylists();
+        searchAllTracks();
     })
     .catch(error => {
         alert(`Signup error: ${error.message}`);
@@ -137,6 +179,8 @@ function checkAuth() {
         showApp();
         getMp3Files();
         getQueue();
+        getPlaylists();
+        searchAllTracks();
     })
     .catch(() => {
         showAuth();
@@ -239,12 +283,17 @@ function getMp3Files() {
 
             const playButton = document.createElement('button');
             playButton.textContent = 'Play';
-            playButton.onclick = () => playMp3(mp3.id);
+            playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Your library');
 
             const queueButton = document.createElement('button');
             queueButton.textContent = 'Queue';
             queueButton.className = 'queue-button';
             queueButton.onclick = () => addToQueue(mp3.id);
+
+            const playlistButton = document.createElement('button');
+            playlistButton.textContent = 'Add to playlist';
+            playlistButton.className = 'secondary';
+            playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
 
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
@@ -255,6 +304,7 @@ function getMp3Files() {
             actions.className = 'track-actions';
             actions.appendChild(playButton);
             actions.appendChild(queueButton);
+            actions.appendChild(playlistButton);
             actions.appendChild(deleteButton);
 
                 li.appendChild(thumb);
@@ -274,9 +324,287 @@ function getMp3Files() {
     });
 }
 
+function searchAllTracks(query) {
+    const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
+    const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
+    fetch(url)
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Search failed');
+        }
+        return body;
+    })
+    .then(data => {
+        renderSearchResults(data);
+    })
+    .catch(error => {
+        console.error('searchAllTracks error:', error);
+        setStatus(`Search error: ${error.message}`);
+    });
+}
+
+function renderSearchResults(data) {
+    const list = document.getElementById('searchResults');
+    list.innerHTML = '';
+    if (!Array.isArray(data) || data.length === 0) {
+        list.innerHTML = '<li style="padding: 18px; text-align: center; color: #999;">No tracks found in shared library.</li>';
+        return;
+    }
+    data.forEach(mp3 => {
+        const li = document.createElement('li');
+        li.className = 'track-item';
+
+        const thumb = document.createElement('div');
+        thumb.className = 'track-thumb';
+        thumb.textContent = mp3.file_name.charAt(0).toUpperCase();
+
+        const meta = document.createElement('div');
+        meta.className = 'track-meta';
+
+        const title = document.createElement('span');
+        title.textContent = mp3.file_name;
+        const subtitle = document.createElement('small');
+        subtitle.textContent = mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`;
+
+        meta.appendChild(title);
+        meta.appendChild(subtitle);
+
+        const playButton = document.createElement('button');
+        playButton.textContent = 'Play';
+        playButton.onclick = () => playMp3(mp3.id, mp3.file_name, subtitle.textContent);
+
+        const queueButton = document.createElement('button');
+        queueButton.textContent = 'Queue';
+        queueButton.className = 'queue-button';
+        queueButton.onclick = () => addToQueue(mp3.id);
+
+        const actions = document.createElement('div');
+        actions.className = 'track-actions';
+        actions.appendChild(playButton);
+        actions.appendChild(queueButton);
+
+        if (!mp3.owned) {
+            const importButton = document.createElement('button');
+            importButton.textContent = 'Import';
+            importButton.className = 'secondary';
+            importButton.onclick = () => importTrack(mp3.id);
+            actions.appendChild(importButton);
+        }
+
+        li.appendChild(thumb);
+        li.appendChild(meta);
+        li.appendChild(actions);
+        list.appendChild(li);
+    });
+}
+
+function getPlaylists() {
+    fetch(resolveApiUrl('/playlists'))
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Failed to load playlists');
+        }
+        return body;
+    })
+    .then(data => {
+        renderPlaylists(data);
+    })
+    .catch(error => {
+        console.error('getPlaylists error:', error);
+        setStatus(`Playlists error: ${error.message}`);
+    });
+}
+
+function renderPlaylists(data) {
+    const list = document.getElementById('playlistsList');
+    list.innerHTML = '';
+    if (!Array.isArray(data) || data.length === 0) {
+        list.innerHTML = '<li style="padding: 15px; text-align: center; color: #999;">No playlists created yet.</li>';
+        return;
+    }
+    data.forEach(playlist => {
+        const li = document.createElement('li');
+        const title = document.createElement('span');
+        title.textContent = `${playlist.name} (${playlist.trackCount || 0})`;
+        const openButton = document.createElement('button');
+        openButton.className = 'secondary';
+        openButton.textContent = 'Open';
+        openButton.onclick = () => loadPlaylistDetails(playlist.id, playlist.name);
+        li.appendChild(title);
+        li.appendChild(openButton);
+        list.appendChild(li);
+    });
+}
+
+function createPlaylist() {
+    const name = document.getElementById('playlistName').value.trim();
+    if (!name) {
+        alert('Please enter a playlist name');
+        return;
+    }
+    fetch(resolveApiUrl('/playlists'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Playlist creation failed');
+        }
+        return body;
+    })
+    .then(() => {
+        document.getElementById('playlistName').value = '';
+        setStatus(`Playlist created: ${name}`);
+        getPlaylists();
+    })
+    .catch(error => {
+        setStatus(`Playlist error: ${error.message}`);
+    });
+}
+
+function addTrackToPlaylist(trackId) {
+    if (!currentPlaylistId) {
+        alert('Select a playlist before adding tracks');
+        return;
+    }
+    fetch(resolveApiUrl(`/playlists/${currentPlaylistId}/tracks`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId })
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Unable to add track to playlist');
+        }
+        return body;
+    })
+    .then(() => {
+        setStatus('Track added to playlist');
+        loadPlaylistDetails(currentPlaylistId, document.getElementById('currentPlaylistName').textContent);
+    })
+    .catch(error => {
+        setStatus(`Playlist update error: ${error.message}`);
+    });
+}
+
+function loadPlaylistDetails(id, name) {
+    currentPlaylistId = id;
+    document.getElementById('currentPlaylistName').textContent = name;
+    fetch(resolveApiUrl(`/playlists/${id}`))
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Failed to load playlist');
+        }
+        return body;
+    })
+    .then(data => {
+        renderPlaylistTracks(data.tracks || []);
+    })
+    .catch(error => {
+        setStatus(`Playlist load error: ${error.message}`);
+    });
+}
+
+function renderPlaylistTracks(tracks) {
+    const list = document.getElementById('playlistTrackList');
+    list.innerHTML = '';
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+        list.innerHTML = '<li style="padding: 16px; text-align: center; color: #999;">No songs in this playlist yet.</li>';
+        return;
+    }
+    tracks.forEach(mp3 => {
+        const li = document.createElement('li');
+        li.className = 'track-item';
+        const meta = document.createElement('div');
+        meta.style.minWidth = '0';
+
+        const title = document.createElement('span');
+        title.textContent = mp3.file_name;
+        const subtitle = document.createElement('small');
+        subtitle.textContent = mp3.subtitle || `Track ${mp3.id}`;
+
+        meta.appendChild(title);
+        meta.appendChild(subtitle);
+
+        const actions = document.createElement('div');
+        actions.className = 'track-actions';
+
+        const playButton = document.createElement('button');
+        playButton.textContent = 'Play';
+        playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Playlist');
+
+        const queueButton = document.createElement('button');
+        queueButton.textContent = 'Queue';
+        queueButton.className = 'queue-button';
+        queueButton.onclick = () => addToQueue(mp3.id);
+
+        const removeButton = document.createElement('button');
+        removeButton.textContent = 'Remove';
+        removeButton.className = 'delete-button';
+        removeButton.onclick = () => removeFromPlaylist(currentPlaylistId, mp3.id);
+
+        actions.appendChild(playButton);
+        actions.appendChild(queueButton);
+        actions.appendChild(removeButton);
+
+        li.appendChild(meta);
+        li.appendChild(actions);
+        list.appendChild(li);
+    });
+}
+
+function removeFromPlaylist(playlistId, trackId) {
+    fetch(resolveApiUrl(`/playlists/${playlistId}/tracks/${trackId}`), {
+        method: 'DELETE'
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Failed to remove track');
+        }
+        return body;
+    })
+    .then(() => {
+        setStatus('Track removed from playlist');
+        if (currentPlaylistId) {
+            loadPlaylistDetails(currentPlaylistId, document.getElementById('currentPlaylistName').textContent);
+        }
+    })
+    .catch(error => {
+        setStatus(`Playlist remove error: ${error.message}`);
+    });
+}
+
+function importTrack(id) {
+    fetch(resolveApiUrl(`/import/${id}`), {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(async response => {
+        const body = await parseJsonOrText(response);
+        if (!response.ok) {
+            throw new Error(body?.error || body || 'Import failed');
+        }
+        return body;
+    })
+    .then(data => {
+        setStatus(`Imported track: ${data.fileName}`);
+        getMp3Files();
+    })
+    .catch(error => {
+        setStatus(`Import error: ${error.message}`);
+    });
+}
+
 let currentTrackId = null;
 
-function playMp3(id) {
+function playMp3(id, title = '', subtitle = '') {
     const player = document.getElementById('audioPlayer');
     currentTrackId = id;
     player.src = resolveApiUrl(`/play/${id}`);
@@ -284,7 +612,7 @@ function playMp3(id) {
     player.play().catch(error => {
         setStatus(`Playback error: ${error.message}`);
     });
-    setStatus(`Playing track ${id}`);
+    updateNowPlaying({ title: title || `Track ${id}`, subtitle: subtitle || 'Playing now', cover: title ? title.charAt(0).toUpperCase() : '♫', status: `Playing ${title || id}` });
 }
 
 function playPrevFromQueue() {
@@ -295,8 +623,8 @@ function playPrevFromQueue() {
             throw new Error(body?.error || body || 'Play previous failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id);
-            setStatus(`Playing previous track ${body.playing.id}`);
+            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Previous track');
+            setStatus(`Playing previous track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
             setStatus(body.message || 'No previous track');
@@ -401,8 +729,8 @@ function playNextFromQueue() {
             throw new Error(body?.error || body || 'Play next failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id);
-            setStatus(`Playing next track ${body.playing.id}`);
+            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Next track');
+            setStatus(`Playing next track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
             setStatus(body.message || 'No next track');
@@ -464,12 +792,21 @@ if ('serviceWorker' in navigator) {
 
 window.onload = () => {
     const player = document.getElementById('audioPlayer');
+    const seekBar = document.getElementById('seekBar');
     player.loop = loopMode;
     player.onended = () => {
         if (!loopMode) {
             playNextFromQueue();
         }
     };
+    player.ontimeupdate = updateSeekBar;
+    player.onloadedmetadata = updateSeekBar;
+    if (seekBar) {
+        seekBar.oninput = (event) => {
+            player.currentTime = Number(event.target.value);
+            updateSeekBar();
+        };
+    }
     updateLoopButton();
     checkAuth();
 };

@@ -73,12 +73,22 @@ const mp3FileSchema = new mongoose.Schema({
   fileName: String,
   fileData: Buffer,
   fileHash: String,
+  uploaderEmail: String,
+  uploaderName: String,
   createdAt: { type: Date, default: Date.now },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 });
 
+const playlistSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  trackIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mp3File' }],
+  createdAt: { type: Date, default: Date.now }
+});
+
 const User = mongoose.model('User', userSchema);
 const Mp3FileModel = mongoose.model('Mp3File', mp3FileSchema);
+const Playlist = mongoose.model('Playlist', playlistSchema);
 
 app.use(express.json());
 app.use(session({
@@ -215,6 +225,7 @@ app.post('/signup', requireDatabase, async (req, res) => {
     await user.save();
     req.session.userId = user._id;
     req.session.userEmail = user.email;
+    req.session.displayName = user.displayName;
     res.json({ id: user._id, email: user.email, displayName: user.displayName });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -237,6 +248,7 @@ app.post('/login', requireDatabase, async (req, res) => {
     }
     req.session.userId = user._id;
     req.session.userEmail = user.email;
+    req.session.displayName = user.displayName;
     res.json({ id: user._id, email: user.email, displayName: user.displayName });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -305,7 +317,14 @@ app.post('/upload', ensureAuthenticated, requireDatabase, upload.single('music')
       return res.status(409).json({ error: 'Duplicate track found: same file name or same file content' });
     }
 
-    const mp3Document = new Mp3FileModel({ fileName, fileData, fileHash, userId: req.session.userId });
+    const mp3Document = new Mp3FileModel({
+      fileName,
+      fileData,
+      fileHash,
+      uploaderEmail: req.session.userEmail,
+      uploaderName: req.session.displayName || req.session.userEmail,
+      userId: req.session.userId
+    });
     await mp3Document.save();
 
     const mp3File = new Mp3FileItem(mp3Document._id, fileName);
@@ -332,13 +351,138 @@ app.delete('/mp3_files/:id', ensureAuthenticated, requireDatabase, async (req, r
 
 app.get('/play/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
-    const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.session.userId });
+    const row = await Mp3FileModel.findById(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'MP3 file not found' });
     }
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
     res.send(row.fileData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const query = (req.query.q || '').trim();
+    const filter = query ? { fileName: { $regex: query, $options: 'i' } } : {};
+    const rows = await Mp3FileModel.find(filter).sort({ createdAt: -1 }).limit(120);
+    res.json(rows.map(row => ({
+      id: row._id,
+      file_name: row.fileName,
+      uploaderEmail: row.uploaderEmail,
+      owned: row.userId.toString() === req.session.userId.toString(),
+      created_at: row.createdAt
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/import/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const source = await Mp3FileModel.findById(req.params.id);
+    if (!source) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+    if (source.userId.toString() === req.session.userId.toString()) {
+      return res.status(409).json({ error: 'Track already in your library' });
+    }
+    const existing = await Mp3FileModel.findOne({
+      userId: req.session.userId,
+      $or: [{ fileHash: source.fileHash }, { fileName: source.fileName }]
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'You already have this track in your library' });
+    }
+    const copy = new Mp3FileModel({
+      fileName: source.fileName,
+      fileData: source.fileData,
+      fileHash: source.fileHash,
+      uploaderEmail: req.session.userEmail,
+      uploaderName: req.session.displayName || req.session.userEmail,
+      userId: req.session.userId
+    });
+    await copy.save();
+    const mp3File = new Mp3FileItem(copy._id, copy.fileName);
+    queue.addMp3File(req.session.userId, mp3File);
+    res.status(201).json({ id: copy._id, fileName: copy.fileName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/playlists', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const playlists = await Playlist.find({ userId: req.session.userId }).sort({ createdAt: -1 });
+    res.json(playlists.map(item => ({ id: item._id, name: item.name, trackCount: item.trackIds.length })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/playlists', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Playlist name is required' });
+    }
+    const playlist = new Playlist({ name: name.trim(), userId: req.session.userId, trackIds: [] });
+    await playlist.save();
+    res.status(201).json({ id: playlist._id, name: playlist.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/playlists/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+    const tracks = await Mp3FileModel.find({ _id: { $in: playlist.trackIds } });
+    res.json({ id: playlist._id, name: playlist.name, tracks: tracks.map(row => ({ id: row._id, file_name: row.fileName })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/playlists/:id/tracks', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const { trackId } = req.body;
+    if (!trackId) {
+      return res.status(400).json({ error: 'trackId is required' });
+    }
+    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+    const track = await Mp3FileModel.findById(trackId);
+    if (!track) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+    if (playlist.trackIds.some(id => id.toString() === trackId)) {
+      return res.status(409).json({ error: 'Track already in playlist' });
+    }
+    playlist.trackIds.push(track._id);
+    await playlist.save();
+    res.json({ message: 'Track added to playlist' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/playlists/:id/tracks/:trackId', ensureAuthenticated, requireDatabase, async (req, res) => {
+  try {
+    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+    playlist.trackIds = playlist.trackIds.filter(id => id.toString() !== req.params.trackId);
+    await playlist.save();
+    res.json({ message: 'Track removed from playlist' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -351,7 +495,7 @@ app.get('/stop', ensureAuthenticated, (req, res) => {
 
 app.post('/queue/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
-    const row = await Mp3FileModel.findOne({ _id: req.params.id, userId: req.session.userId });
+    const row = await Mp3FileModel.findById(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'MP3 file not found' });
     }

@@ -358,7 +358,147 @@ audio {
 .track-list {
     width: 100%;
 }
+.player-card {
+    display: grid;
+    gap: 18px;
+}
 
+.player-panel {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(29, 185, 84, 0.12), rgba(14, 16, 18, 0.88));
+    border: 1px solid rgba(29, 185, 84, 0.18);
+}
+
+.player-cover {
+    width: 92px;
+    height: 92px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #1db954 0%, #3dd17d 100%);
+    display: grid;
+    place-items: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 22px 50px rgba(29, 185, 84, 0.22);
+}
+
+.player-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.player-badge {
+    color: #1db954;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.78rem;
+}
+
+.player-meta h2 {
+    margin: 0;
+    font-size: 1.55rem;
+    line-height: 1.1;
+}
+
+.player-meta p {
+    margin: 0;
+    color: #c6c6c6;
+    line-height: 1.6;
+}
+
+.player-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.player-controls button {
+    min-width: 120px;
+    border-radius: 999px;
+}
+
+.progress-row {
+    display: grid;
+    gap: 10px;
+    align-items: center;
+    grid-template-columns: auto 1fr auto;
+}
+
+.progress-row input[type='range'] {
+    width: 100%;
+    accent-color: #1db954;
+}
+
+.player-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+}
+
+.search-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.playlist-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.playlist-create {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+.playlist-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+}
+
+.playlist-list li,
+.playlist-details-card .playlist li {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    color: #e5e5e5;
+}
+
+.playlist-details-card {
+    padding: 0;
+}
+
+.playlist-details-card .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+}
+
+#currentPlaylistName {
+    color: #9a9a9a;
+    font-size: 0.95rem;
+}
 @media (max-width: 680px) {
     .app-shell {
         padding: 18px 12px 24px;
