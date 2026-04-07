@@ -108,8 +108,9 @@
                             <div class="sidebar-group card">
                                 <div class="sidebar-section">
                                     <h2>Upload Track</h2>
-                                    <input type="file" id="musicFile" accept="audio/*">
+                                    <input type="file" id="musicFile" accept="audio/*" multiple webkitdirectory directory mozdirectory>
                                     <button onclick="uploadMusic()">⬆️ Upload</button>
+                                    <p class="hint">Select a folder or multiple audio files to upload at once.</p>
                                 </div>
                                 <div class="sidebar-section">
                                     <h2>Backend URL</h2>
@@ -119,12 +120,15 @@
                                 </div>
                             </div>
 
-                            <section class="track-list card">
-                                <div class="section-header">
-                                    <h2>Saved Tracks</h2>
+                            <div class="sidebar-group card">
+                                <div class="sidebar-section">
+                                    <div class="section-header">
+                                        <h2>Saved Tracks</h2>
+                                        <p class="hint">Browse and play tracks you uploaded from your device.</p>
+                                    </div>
+                                    <ul id="mp3List" class="playlist"></ul>
                                 </div>
-                                <ul id="mp3List" class="playlist"></ul>
-                            </section>
+                            </div>
                         </div>
                     </section>
 
