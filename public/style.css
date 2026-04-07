@@ -259,6 +259,22 @@ button.logout-button:hover {
     justify-content: flex-end;
 }
 
+.pagination-controls {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: #d0d0d0;
+    font-size: 0.95rem;
+}
+
+.pagination-controls button {
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+}
+
 .track-item button {
     min-width: auto;
     padding: 10px 14px;

@@ -4,6 +4,8 @@ let currentUser = null;
 let currentTrackMeta = null;
 let currentPlaylistId = null;
 let currentLoopTrackIds = [];
+let currentLibraryPage = 1;
+const LIBRARY_PAGE_SIZE = 10;
 
 function setStatus(message) {
     document.getElementById('playerStatus').textContent = message;
@@ -323,13 +325,19 @@ async function safeFetch(url, options = {}) {
     }
 }
 
-async function getMp3Files(page = 1, perPage = 10) {
+async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZE) {
+    currentLibraryPage = Math.max(1, page);
     try {
         const allFiles = await safeFetch(resolveApiUrl('/mp3_files'));
         if (!allFiles || !Array.isArray(allFiles)) throw new Error('Invalid response format');
 
-        // Pagination
-        const start = (page - 1) * perPage;
+        const totalItems = allFiles.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+        if (currentLibraryPage > totalPages) {
+            currentLibraryPage = totalPages;
+        }
+
+        const start = (currentLibraryPage - 1) * perPage;
         const end = start + perPage;
         const paginatedFiles = allFiles.slice(start, end);
 
@@ -338,6 +346,10 @@ async function getMp3Files(page = 1, perPage = 10) {
 
         if (paginatedFiles.length === 0) {
             list.innerHTML = '<li style="padding: 20px; text-align: center; color: #999;">No tracks yet</li>';
+            const pagination = document.getElementById('libraryPagination');
+            if (pagination) {
+                pagination.innerHTML = '';
+            }
             return;
         }
 
@@ -362,9 +374,21 @@ async function getMp3Files(page = 1, perPage = 10) {
             playButton.textContent = '▶️ Play';
             playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Your library');
 
+            const queueButton = document.createElement('button');
+            queueButton.textContent = '➕ Queue';
+            queueButton.className = 'queue-button';
+            queueButton.onclick = () => addToQueue(mp3.id);
+
+            const playlistButton = document.createElement('button');
+            playlistButton.textContent = '➕ Playlist';
+            playlistButton.className = 'secondary';
+            playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
+
             const actions = document.createElement('div');
             actions.className = 'track-actions';
             actions.appendChild(playButton);
+            actions.appendChild(queueButton);
+            actions.appendChild(playlistButton);
 
             li.appendChild(thumb);
             li.appendChild(meta);
@@ -373,22 +397,37 @@ async function getMp3Files(page = 1, perPage = 10) {
         });
 
         // Optional pagination buttons
-        const pagination = document.getElementById('pagination');
+        const pagination = document.getElementById('libraryPagination');
         if (pagination) {
             pagination.innerHTML = `
-                <button ${page === 1 ? 'disabled' : ''} onclick="getMp3Files(${page - 1}, ${perPage})">Prev</button>
-                <span>Page ${page}</span>
-                <button ${end >= allFiles.length ? 'disabled' : ''} onclick="getMp3Files(${page + 1}, ${perPage})">Next</button>
+                <button ${currentLibraryPage === 1 ? 'disabled' : ''} onclick="prevLibraryPage()">Prev</button>
+                <span>Page ${currentLibraryPage} / ${totalPages}</span>
+                <button ${currentLibraryPage === totalPages ? 'disabled' : ''} onclick="nextLibraryPage()">Next</button>
             `;
         }
 
-        setStatus(`Loaded ${paginatedFiles.length} tracks`);
+        setStatus(`Loaded ${paginatedFiles.length} tracks (${totalItems} total)`);
     } catch (error) {
         console.error('getMp3Files error:', error);
         const list = document.getElementById('mp3List');
         list.innerHTML = `<li style="padding: 20px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
+        const pagination = document.getElementById('libraryPagination');
+        if (pagination) {
+            pagination.innerHTML = '';
+        }
         setStatus(`Load error: ${error.message}`);
     }
+}
+
+function prevLibraryPage() {
+    if (currentLibraryPage <= 1) return;
+    currentLibraryPage -= 1;
+    getMp3Files();
+}
+
+function nextLibraryPage() {
+    currentLibraryPage += 1;
+    getMp3Files();
 }
 
 async function searchAllTracks(query) {
@@ -451,10 +490,16 @@ function renderSearchResults(data) {
         queueButton.className = 'queue-button';
         queueButton.onclick = () => addToQueue(mp3.id);
 
+        const playlistButton = document.createElement('button');
+        playlistButton.textContent = '➕ Playlist';
+        playlistButton.className = 'secondary';
+        playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
+
         const actions = document.createElement('div');
         actions.className = 'track-actions';
         actions.appendChild(playButton);
         actions.appendChild(queueButton);
+        actions.appendChild(playlistButton);
 
         if (!mp3.owned) {
             const importButton = document.createElement('button');
@@ -728,14 +773,17 @@ function importTrack(id) {
 
 let currentTrackId = null;
 
-function playMp3(id, title = '', subtitle = '') {
+function playMp3(id, title = '', subtitle = '', options = {}) {
     const player = document.getElementById('audioPlayer');
+    const { force = false } = options;
     const trackTitle = title || `Track ${id}`;
     const trackSubtitle = subtitle || 'Playing now';
 
-    if (!player.paused && currentTrackId && currentTrackId.toString() !== id.toString()) {
-        addToQueue(id);
-        setStatus(`Queued ${trackTitle}`);
+    if (!force && currentTrackId && currentTrackId.toString() === id.toString() && player.src) {
+        player.play().then(() => setPlayButtonState(true)).catch(error => {
+            setStatus(`Playback error: ${error.message}`);
+            setPlayButtonState(false);
+        });
         return;
     }
 
@@ -759,7 +807,7 @@ function playPrevFromQueue() {
             throw new Error(body?.error || body || 'Play previous failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Previous track');
+            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Previous track', { force: true });
             setStatus(`Playing previous track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
@@ -881,7 +929,7 @@ function playNextFromQueue() {
             throw new Error(body?.error || body || 'Play next failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Next track');
+            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Next track', { force: true });
             setStatus(`Playing next track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
