@@ -318,7 +318,13 @@ module.exports = { Queue, Player, MusicManager, app };
 
 app.get('/mp3_files', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
-    const rows = await Mp3FileModel.find({ userId: req.session.userId }).sort({ createdAt: -1 });
+  const rows = await Mp3FileModel.aggregate([
+  { $match: { userId: new mongoose.Types.ObjectId(req.session.userId) } },
+  { $sort: { createdAt: -1 } },
+  { $limit: 120 }
+  ], {
+  allowDiskUse: true
+  });
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -417,9 +423,21 @@ app.get('/cover/:id', ensureAuthenticated, requireDatabase, async (req, res) => 
 app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
   try {
     const query = (req.query.q || '').trim();
-    const filter = query ? { fileName: { $regex: query, $options: 'i' } } : {};
-    const rows = await Mp3FileModel.find(filter).sort({ createdAt: -1 }).limit(120);
+
+    const match = query
+      ? { fileName: { $regex: query, $options: 'i' } }
+      : {};
+
+    const rows = await Mp3FileModel.aggregate([
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $limit: 120 }
+    ], {
+      allowDiskUse: true
+    });
+
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
