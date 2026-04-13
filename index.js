@@ -57,6 +57,7 @@ mongoose.connect(mongoUri)
   })
   .catch(err => {
     console.error('❌ MongoDB erreur:', err);
+    console.error('Server will continue with limited functionality (token auth only)');
   });
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
@@ -292,9 +293,17 @@ function ensureAuthenticated(req, res, next) {
 }
 
 function requireDatabase(req, res, next) {
+  // For token-based auth endpoints, don't require database if it's down
+  // The token validation is in-memory anyway
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    return next();
+  }
+  
   if (mongoose.connection.readyState === 1) {
     return next();
   }
+  
+  // If database is down and no token auth, return 503
   res.status(503).json({ 
     error: 'Database unavailable',
     details: 'MongoDB connection failed. Check MONGODB_URI and network access.',
@@ -501,7 +510,12 @@ class MusicManager {
 
 module.exports = { Queue, Player, MusicManager, app };
 
-app.get('/mp3_files', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    // Database unavailable, return empty array
+    return res.json([]);
+  }
+  
   try {
   const rows = await Mp3FileModel.aggregate([
   { $match: { userId: new mongoose.Types.ObjectId(req.session.userId) } },
@@ -578,7 +592,11 @@ app.delete('/mp3_files/:id', ensureAuthenticated, requireDatabase, async (req, r
   }
 });
 
-app.get('/play/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.get('/play/:id', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Database unavailable' });
+  }
+  
   try {
     const row = await Mp3FileModel.findById(req.params.id);
     if (!row) {
@@ -605,7 +623,11 @@ app.get('/cover/:id', ensureAuthenticated, requireDatabase, async (req, res) => 
   }
 });
 
-app.get('/search', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.get('/search', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.json([]);
+  }
+  
   try {
     const query = (req.query.q || '').trim();
 
@@ -661,7 +683,11 @@ app.post('/import/:id', ensureAuthenticated, requireDatabase, async (req, res) =
   }
 });
 
-app.get('/playlists', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.get('/playlists', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.json([]);
+  }
+  
   try {
     const playlists = await Playlist.find({ userId: req.session.userId }).sort({ createdAt: -1 });
     res.json(playlists.map(item => ({ id: item._id, name: item.name, trackCount: item.trackIds.length })));
@@ -684,7 +710,11 @@ app.post('/playlists', ensureAuthenticated, requireDatabase, async (req, res) =>
   }
 });
 
-app.get('/playlists/:id', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.get('/playlists/:id', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Database unavailable' });
+  }
+  
   try {
     const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
     if (!playlist) {
