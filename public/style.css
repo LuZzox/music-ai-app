@@ -134,6 +134,44 @@ button.logout-button {
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.playlist-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+}
+
+.playlist-accent {
+    width: 12px;
+    height: 44px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.playlist-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.playlist-meta span {
+    color: #fff;
+    font-weight: 700;
+}
+
+.playlist-meta small {
+    color: #b8b8b8;
+    font-size: 0.86rem;
+}
+
+.playlist-item button {
+    margin-left: auto;
+}
+
 button.logout-button {
     width: 100%;
     padding: 12px 16px;
@@ -257,19 +295,25 @@ button.logout-button:hover {
 .track-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 16px;
+    gap: 12px;
+    padding: 12px 14px;
     background: #111315;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 18px;
+    transition: background 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+}
+.track-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
 }
 
 .track-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-left: auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
 }
 
@@ -331,9 +375,14 @@ button.logout-button:hover {
     min-width: 0;
 }
 
+.track-meta {
+    min-width: 0;
+}
+
 .track-meta span {
     color: #f4f4f4;
     font-weight: 600;
+    font-size: 0.96rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -341,7 +390,7 @@ button.logout-button:hover {
 
 .track-meta small {
     color: #9a9a9a;
-    font-size: 0.92rem;
+    font-size: 0.82rem;
 }
 
 .track-item button {

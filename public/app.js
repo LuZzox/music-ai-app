@@ -57,6 +57,99 @@ function applyCoverToElement(element, title, coverUrl) {
     }
 }
 
+function makePlaylistTheme(name) {
+    const [colorA, colorB] = getCoverColors(name || 'playlist');
+    return { background: `linear-gradient(135deg, ${colorA} 0%, ${colorB} 100%)` };
+}
+
+function renderTrackItem(mp3, options = {}) {
+    const { showDelete = false, showImport = false, showQueue = true, showPlaylist = true, extraSubtitle = '' } = options;
+    const li = document.createElement('li');
+    li.className = 'track-item compact';
+    li.onclick = event => {
+        if (event.target.closest('button')) return;
+        playMp3(mp3.id, mp3.file_name, mp3.uploaderEmail ? `By ${mp3.uploaderEmail}` : extraSubtitle || 'Playing now');
+    };
+
+    const thumb = document.createElement('div');
+    thumb.className = 'track-thumb';
+    applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
+
+    const meta = document.createElement('div');
+    meta.className = 'track-meta';
+    const title = document.createElement('span');
+    title.textContent = mp3.file_name;
+    const subtitle = document.createElement('small');
+    subtitle.textContent = mp3.uploaderEmail ? `By ${mp3.uploaderEmail}` : extraSubtitle || `Track ${mp3.id}`;
+    meta.appendChild(title);
+    meta.appendChild(subtitle);
+
+    const actions = document.createElement('div');
+    actions.className = 'track-actions';
+
+    const playButton = document.createElement('button');
+    playButton.textContent = '▶️';
+    playButton.title = 'Play';
+    playButton.onclick = (event) => {
+        event.stopPropagation();
+        playMp3(mp3.id, mp3.file_name, subtitle.textContent);
+    };
+    actions.appendChild(playButton);
+
+    if (showQueue) {
+        const queueButton = document.createElement('button');
+        queueButton.textContent = '➕';
+        queueButton.title = 'Add to queue';
+        queueButton.className = 'queue-button';
+        queueButton.onclick = event => {
+            event.stopPropagation();
+            addToQueue(mp3.id);
+        };
+        actions.appendChild(queueButton);
+    }
+
+    if (showPlaylist) {
+        const playlistButton = document.createElement('button');
+        playlistButton.textContent = '📁';
+        playlistButton.title = 'Add to playlist';
+        playlistButton.className = 'secondary';
+        playlistButton.onclick = event => {
+            event.stopPropagation();
+            addTrackToPlaylist(mp3.id);
+        };
+        actions.appendChild(playlistButton);
+    }
+
+    if (showImport && !mp3.owned) {
+        const importButton = document.createElement('button');
+        importButton.textContent = '📥';
+        importButton.title = 'Import';
+        importButton.className = 'secondary';
+        importButton.onclick = event => {
+            event.stopPropagation();
+            importTrack(mp3.id);
+        };
+        actions.appendChild(importButton);
+    }
+
+    if (showDelete) {
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = '🗑️';
+        deleteButton.title = 'Delete';
+        deleteButton.className = 'delete-button';
+        deleteButton.onclick = event => {
+            event.stopPropagation();
+            deleteMp3(mp3.id);
+        };
+        actions.appendChild(deleteButton);
+    }
+
+    li.appendChild(thumb);
+    li.appendChild(meta);
+    li.appendChild(actions);
+    return li;
+}
+
 function updateSeekBar() {
     const player = document.getElementById('audioPlayer');
     const slider = document.getElementById('seekBar');
@@ -451,51 +544,13 @@ async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZ
         }
 
         paginatedFiles.forEach(mp3 => {
-            const li = document.createElement('li');
-            li.className = 'track-item';
-
-            const thumb = document.createElement('div');
-            thumb.className = 'track-thumb';
-            applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
-
-            const meta = document.createElement('div');
-            meta.className = 'track-meta';
-            const title = document.createElement('span');
-            title.textContent = mp3.file_name;
-            const subtitle = document.createElement('small');
-            subtitle.textContent = `Track ${mp3.id}`;
-            meta.appendChild(title);
-            meta.appendChild(subtitle);
-
-            const playButton = document.createElement('button');
-            playButton.textContent = '▶️ Play';
-            playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Your library');
-
-            const queueButton = document.createElement('button');
-            queueButton.textContent = '➕ Queue';
-            queueButton.className = 'queue-button';
-            queueButton.onclick = () => addToQueue(mp3.id);
-
-            const playlistButton = document.createElement('button');
-            playlistButton.textContent = '➕ Playlist';
-            playlistButton.className = 'secondary';
-            playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
-
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = '🗑️ Delete';
-            deleteButton.className = 'delete-button';
-            deleteButton.onclick = () => deleteMp3(mp3.id);
-
-            const actions = document.createElement('div');
-            actions.className = 'track-actions';
-            actions.appendChild(playButton);
-            actions.appendChild(queueButton);
-            actions.appendChild(playlistButton);
-            actions.appendChild(deleteButton);
-
-            li.appendChild(thumb);
-            li.appendChild(meta);
-            li.appendChild(actions);
+            const li = renderTrackItem(mp3, {
+                showDelete: true,
+                showImport: false,
+                showQueue: true,
+                showPlaylist: true,
+                extraSubtitle: 'Your library'
+            });
             list.appendChild(li);
         });
 
@@ -535,12 +590,10 @@ function nextLibraryPage() {
 
 async function searchAllTracks(query) {
     const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
-    if (!searchValue) {
-        setStatus('Enter a search query');
-        return;
-    }
-
     const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
+    if (!searchValue) {
+        setStatus('Showing all shared music');
+    }
 
     try {
         const data = await safeFetch(url);
@@ -566,55 +619,13 @@ function renderSearchResults(data) {
         return;
     }
     data.forEach(mp3 => {
-        const li = document.createElement('li');
-        li.className = 'track-item';
-
-        const thumb = document.createElement('div');
-        thumb.className = 'track-thumb';
-        applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
-
-        const meta = document.createElement('div');
-        meta.className = 'track-meta';
-
-        const title = document.createElement('span');
-        title.textContent = mp3.file_name;
-        const subtitle = document.createElement('small');
-        subtitle.textContent = mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`;
-
-        meta.appendChild(title);
-        meta.appendChild(subtitle);
-
-        const playButton = document.createElement('button');
-        playButton.textContent = '▶️ Play';
-        playButton.onclick = () => playMp3(mp3.id, mp3.file_name, subtitle.textContent);
-
-        const queueButton = document.createElement('button');
-        queueButton.textContent = '➕ Queue';
-        queueButton.className = 'queue-button';
-        queueButton.onclick = () => addToQueue(mp3.id);
-
-        const playlistButton = document.createElement('button');
-        playlistButton.textContent = '➕ Playlist';
-        playlistButton.className = 'secondary';
-        playlistButton.onclick = () => addTrackToPlaylist(mp3.id);
-
-        const actions = document.createElement('div');
-        actions.className = 'track-actions';
-        actions.appendChild(playButton);
-        actions.appendChild(queueButton);
-        actions.appendChild(playlistButton);
-
-        if (!mp3.owned) {
-            const importButton = document.createElement('button');
-            importButton.textContent = '📥 Import';
-            importButton.className = 'secondary';
-            importButton.onclick = () => importTrack(mp3.id);
-            actions.appendChild(importButton);
-        }
-
-        li.appendChild(thumb);
-        li.appendChild(meta);
-        li.appendChild(actions);
+        const li = renderTrackItem(mp3, {
+            showDelete: false,
+            showImport: !mp3.owned,
+            showQueue: true,
+            showPlaylist: true,
+            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`
+        });
         list.appendChild(li);
     });
 }
@@ -652,13 +663,27 @@ function renderPlaylists(data) {
     }
     data.forEach(playlist => {
         const li = document.createElement('li');
+        li.className = 'playlist-item';
+        const accent = document.createElement('div');
+        accent.className = 'playlist-accent';
+        Object.assign(accent.style, makePlaylistTheme(playlist.name));
+
+        const meta = document.createElement('div');
+        meta.className = 'playlist-meta';
         const title = document.createElement('span');
-        title.textContent = `${playlist.name} (${playlist.trackCount || 0})`;
+        title.textContent = playlist.name;
+        const subtitle = document.createElement('small');
+        subtitle.textContent = `${playlist.trackCount || 0} track${playlist.trackCount === 1 ? '' : 's'}`;
+        meta.appendChild(title);
+        meta.appendChild(subtitle);
+
         const openButton = document.createElement('button');
         openButton.className = 'secondary';
         openButton.textContent = 'Open';
         openButton.onclick = () => loadPlaylistDetails(playlist.id, playlist.name);
-        li.appendChild(title);
+
+        li.appendChild(accent);
+        li.appendChild(meta);
         li.appendChild(openButton);
         list.appendChild(li);
     });
@@ -752,46 +777,22 @@ function renderPlaylistTracks(tracks) {
         return;
     }
     tracks.forEach(mp3 => {
-        const li = document.createElement('li');
-        li.className = 'track-item';
-        const thumb = document.createElement('div');
-        thumb.className = 'track-thumb';
-        applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
-        const meta = document.createElement('div');
-        meta.style.minWidth = '0';
-
-        const title = document.createElement('span');
-        title.textContent = mp3.file_name;
-        const subtitle = document.createElement('small');
-        subtitle.textContent = mp3.subtitle || `Track ${mp3.id}`;
-
-        meta.appendChild(title);
-        meta.appendChild(subtitle);
-
-        const actions = document.createElement('div');
-        actions.className = 'track-actions';
-
-        const playButton = document.createElement('button');
-        playButton.textContent = '▶️ Play';
-        playButton.onclick = () => playMp3(mp3.id, mp3.file_name, 'Playlist');
-
-        const queueButton = document.createElement('button');
-        queueButton.textContent = '➕ Queue';
-        queueButton.className = 'queue-button';
-        queueButton.onclick = () => addToQueue(mp3.id);
-
+        const li = renderTrackItem(mp3, {
+            showDelete: false,
+            showImport: false,
+            showQueue: true,
+            showPlaylist: false,
+            extraSubtitle: mp3.subtitle || 'Playlist'
+        });
         const removeButton = document.createElement('button');
-        removeButton.textContent = '🚫 Remove';
+        removeButton.textContent = '🚫';
+        removeButton.title = 'Remove';
         removeButton.className = 'delete-button';
-        removeButton.onclick = () => removeFromPlaylist(currentPlaylistId, mp3.id);
-
-        actions.appendChild(playButton);
-        actions.appendChild(queueButton);
-        actions.appendChild(removeButton);
-
-        li.appendChild(thumb);
-        li.appendChild(meta);
-        li.appendChild(actions);
+        removeButton.onclick = event => {
+            event.stopPropagation();
+            removeFromPlaylist(currentPlaylistId, mp3.id);
+        };
+        li.querySelector('.track-actions').appendChild(removeButton);
         list.appendChild(li);
     });
 }
