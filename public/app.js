@@ -113,6 +113,28 @@ function fetchApi(url, options = {}) {
     return fetch(url, { credentials: 'include', ...options });
 }
 
+async function loadAudioSource(url) {
+    const player = document.getElementById('audioPlayer');
+    if (!player) {
+        throw new Error('Audio player not found');
+    }
+    if (player.dataset.objectUrl) {
+        URL.revokeObjectURL(player.dataset.objectUrl);
+        delete player.dataset.objectUrl;
+    }
+
+    const response = await fetchApi(url);
+    if (!response.ok) {
+        const body = await parseJsonOrText(response);
+        throw new Error(body?.error || body || `Audio fetch failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    player.dataset.objectUrl = objectUrl;
+    player.src = objectUrl;
+}
+
 function storeOfflineData(key, data) {
     try {
         localStorage.setItem(key, JSON.stringify(data));
@@ -809,17 +831,22 @@ async function playPlaylist(trackIds, playlistName) {
     if (!player.src || player.paused) {
         const [firstId, ...restIds] = trackIds;
         currentTrackId = firstId;
-        player.src = resolveApiUrl(`/play/${firstId}`);
-        player.load();
-        player.play().then(() => setPlayButtonState(true)).catch(error => {
+        try {
+            await loadAudioSource(resolveApiUrl(`/play/${firstId}`));
+            player.load();
+            player.play().then(() => setPlayButtonState(true)).catch(error => {
+                setStatus(`Playback error: ${error.message}`);
+                setPlayButtonState(false);
+            });
+            updateNowPlaying({ title: `${name}`, subtitle: 'Playing playlist', status: `Playing ${name}` });
+            if (restIds.length > 0) {
+                await queueTracks(restIds, { silent: true });
+            }
+            await getQueue();
+        } catch (error) {
             setStatus(`Playback error: ${error.message}`);
             setPlayButtonState(false);
-        });
-        updateNowPlaying({ title: `${name}`, subtitle: 'Playing playlist', status: `Playing ${name}` });
-        if (restIds.length > 0) {
-            await queueTracks(restIds, { silent: true });
         }
-        await getQueue();
     } else {
         await queueTracks(trackIds);
         setStatus(`Queued ${trackIds.length} songs from ${name}`);
@@ -866,7 +893,7 @@ function importTrack(id) {
 
 let currentTrackId = null;
 
-function playMp3(id, title = '', subtitle = '', options = {}) {
+async function playMp3(id, title = '', subtitle = '', options = {}) {
     const player = document.getElementById('audioPlayer');
     const { force = false } = options;
     const trackTitle = title || `Track ${id}`;
@@ -883,13 +910,18 @@ function playMp3(id, title = '', subtitle = '', options = {}) {
     currentTrackId = id;
     currentLoopTrackIds = [id];
 
-    player.src = resolveApiUrl(`/play/${id}`);
-    player.load();
-    player.play().then(() => setPlayButtonState(true)).catch(error => {
+    try {
+        await loadAudioSource(resolveApiUrl(`/play/${id}`));
+        player.load();
+        player.play().then(() => setPlayButtonState(true)).catch(error => {
+            setStatus(`Playback error: ${error.message}`);
+            setPlayButtonState(false);
+        });
+        updateNowPlaying({ title: trackTitle, subtitle: trackSubtitle, status: `Playing ${trackTitle}` });
+    } catch (error) {
         setStatus(`Playback error: ${error.message}`);
         setPlayButtonState(false);
-    });
-    updateNowPlaying({ title: trackTitle, subtitle: trackSubtitle, status: `Playing ${trackTitle}` });
+    }
 }
 
 function playPrevFromQueue() {
