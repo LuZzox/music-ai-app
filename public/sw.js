@@ -25,6 +25,12 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const { method, url } = event.request;
+  
+  if (method !== 'GET') {
+    return event.respondWith(fetch(event.request));
+  }
+
   event.respondWith(
     fetch(event.request)
       .then(networkResponse => {

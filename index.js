@@ -94,8 +94,8 @@ app.use((req, res, next) => {
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Accept');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Accept,Authorization,Cookie');
   }
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -105,12 +105,13 @@ app.use((req, res, next) => {
 app.use(session({
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   store: MongoStore.create({ mongoUrl: mongoUri, collectionName: 'sessions' }),
   cookie: {
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production'
+    sameSite: 'none',
+    secure: true,
+    httpOnly: true
   }
 }));
 app.use(express.static('public'));
