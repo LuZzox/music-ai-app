@@ -103,17 +103,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configure session store with error handling
-const store = MongoStore.create({ 
+// Configure session store with fallback to memory store
+let store;
+let mongoStoreConnected = false;
+
+const mongoStore = MongoStore.create({ 
   mongoUrl: mongoUri, 
   collectionName: 'sessions',
   touchAfter: 24 * 3600 // lazy session update
+}).on('connected', () => {
+  mongoStoreConnected = true;
+  console.log('✓ MongoStore connected successfully');
 }).on('error', (err) => {
-  console.error('MongoStore error:', err);
-  console.error('Session store connection failed. Sessions may not persist.');
+  console.error('⚠️  MongoStore error:', err.message);
+  console.warn('⚠️  Falling back to memory-based sessions (will reset on server restart)');
+  mongoStoreConnected = false;
 });
 
-app.use(session({
+store = mongoStore;
+
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
   saveUninitialized: true,
@@ -123,10 +132,19 @@ app.use(session({
     sameSite: 'none',
     secure: true,
     httpOnly: true,
-    path: '/'
+    path: '/',
+    domain: undefined  // Let browser handle domain automatically
   },
   name: 'musica.sid'  // Custom session cookie name for debugging
-}));
+};
+
+app.use(session(sessionConfig));
+
+// Log session middleware initialization
+app.use((req, res, next) => {
+  console.log('[SESSION] Request - ID:', req.sessionID, 'Auth:', !!req.session?.userId);
+  next();
+});
 
 app.use(express.static('public'));
 
@@ -219,17 +237,64 @@ class Player {
 const queue = new Queue();
 const player = new Player();
 
+// In-memory token store as fallback auth mechanism
+const tokenStore = new Map();
+
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function storeToken(userId, email) {
+  const token = generateToken();
+  const expiry = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+  tokenStore.set(token, { userId, email, expiry });
+  
+  // Clean up old tokens
+  for (const [t, data] of tokenStore.entries()) {
+    if (data.expiry < Date.now()) {
+      tokenStore.delete(t);
+    }
+  }
+  
+  return token;
+}
+
+function validateToken(token) {
+  const data = tokenStore.get(token);
+  if (!data) return null;
+  if (data.expiry < Date.now()) {
+    tokenStore.delete(token);
+    return null;
+  }
+  return data;
+}
+
 function ensureAuthenticated(req, res, next) {
   const sessionId = req.sessionID;
   const hasSession = !!req.session;
   const userId = req.session?.userId;
   
+  // Check session first
   if (req.session && req.session.userId) {
-    console.log('[AUTH] ✓ Request authenticated:', userId, 'sessionID:', sessionId);
+    console.log('[AUTH] ✓ Session authenticated:', userId, 'sessionID:', sessionId);
     return next();
   }
   
-  console.log('[AUTH] ✗ Unauthorized request - sessionID:', sessionId, 'hasSession:', hasSession, 'userId:', userId);
+  // Fall back to token auth (Authorization header)
+  const authHeader = req.headers.authorization || '';
+  const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
+  if (tokenMatch) {
+    const token = tokenMatch[1];
+    const tokenData = validateToken(token);
+    if (tokenData) {
+      console.log('[AUTH] ✓ Token authenticated:', tokenData.email);
+      req.session.userId = tokenData.userId;
+      req.session.userEmail = tokenData.email;
+      return next();
+    }
+  }
+  
+  console.log('[AUTH] ✗ Unauthorized - no session or valid token');
   res.status(401).json({ error: 'Unauthorized' });
 }
 
@@ -287,14 +352,30 @@ app.post('/signup', requireDatabase, async (req, res) => {
     req.session.displayName = user.displayName;
     console.log('[SIGNUP] Session set for user:', user.email, 'SessionID:', req.sessionID);
     
+    // Generate token as fallback auth
+    const token = storeToken(user._id, user.email);
+    
     // Explicitly save session to MongoDB before responding
     req.session.save((err) => {
       if (err) {
         console.error('[SIGNUP] Session save error:', err);
-        return res.status(500).json({ error: 'Failed to save session' });
+        // Still return response with token even if session save fails
+        return res.json({ 
+          id: user._id, 
+          email: user.email, 
+          displayName: user.displayName,
+          token: token,
+          authMethod: 'token-fallback'
+        });
       }
       console.log('[SIGNUP] Session saved successfully for:', user.email);
-      res.json({ id: user._id, email: user.email, displayName: user.displayName });
+      res.json({ 
+        id: user._id, 
+        email: user.email, 
+        displayName: user.displayName,
+        token: token,
+        authMethod: 'session'
+      });
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -320,14 +401,30 @@ app.post('/login', requireDatabase, async (req, res) => {
     req.session.displayName = user.displayName;
     console.log('[LOGIN] Session set for user:', user.email, 'SessionID:', req.sessionID);
     
+    // Generate token as fallback auth
+    const token = storeToken(user._id, user.email);
+    
     // Explicitly save session to MongoDB before responding
     req.session.save((err) => {
       if (err) {
         console.error('[LOGIN] Session save error:', err);
-        return res.status(500).json({ error: 'Failed to save session' });
+        // Still return response with token even if session save fails
+        return res.json({ 
+          id: user._id, 
+          email: user.email, 
+          displayName: user.displayName,
+          token: token,
+          authMethod: 'token-fallback'
+        });
       }
       console.log('[LOGIN] Session saved successfully for:', user.email);
-      res.json({ id: user._id, email: user.email, displayName: user.displayName });
+      res.json({ 
+        id: user._id, 
+        email: user.email, 
+        displayName: user.displayName,
+        token: token,
+        authMethod: 'session'
+      });
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

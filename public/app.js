@@ -204,7 +204,19 @@ function resolveApiUrl(path) {
 }
 
 function fetchApi(url, options = {}) {
-    return fetch(url, { credentials: 'include', ...options });
+    const token = getAuthToken();
+    const headers = options.headers || {};
+    
+    // Add token to Authorization header if available
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return fetch(url, { 
+        credentials: 'include', 
+        ...options,
+        headers
+    });
 }
 
 async function loadAudioSource(url) {
@@ -257,6 +269,22 @@ function clearOfflineUser() {
     localStorage.removeItem('musica-offline-user');
 }
 
+function saveAuthToken(token) {
+    if (token) {
+        localStorage.setItem('musica-auth-token', token);
+        console.log('[TOKEN] Auth token saved');
+    }
+}
+
+function getAuthToken() {
+    return localStorage.getItem('musica-auth-token');
+}
+
+function clearAuthToken() {
+    localStorage.removeItem('musica-auth-token');
+    console.log('[TOKEN] Auth token cleared');
+}
+
 async function parseJsonOrText(response) {
     const text = await response.text();
     try {
@@ -297,6 +325,11 @@ function handleLogin() {
         currentUser = user;
         offlineMode = false;
         saveOfflineUser(user);
+        // Save the authentication token if provided
+        if (user.token) {
+            saveAuthToken(user.token);
+            console.log('[LOGIN] Auth method:', user.authMethod);
+        }
         document.getElementById('loginEmail').value = '';
         document.getElementById('loginPassword').value = '';
         showApp();
@@ -336,6 +369,11 @@ function handleSignup() {
         currentUser = user;
         offlineMode = false;
         saveOfflineUser(user);
+        // Save the authentication token if provided
+        if (user.token) {
+            saveAuthToken(user.token);
+            console.log('[SIGNUP] Auth method:', user.authMethod);
+        }
         document.getElementById('signupEmail').value = '';
         document.getElementById('signupPassword').value = '';
         document.getElementById('signupName').value = '';
@@ -356,12 +394,14 @@ function handleLogout() {
         currentUser = null;
         offlineMode = false;
         clearOfflineUser();
+        clearAuthToken();
         document.getElementById('musicFile').value = '';
         showAuth();
     })
     .catch(error => {
         console.error('Logout error:', error);
         currentUser = null;
+        clearAuthToken();
         showAuth();
     });
 }
