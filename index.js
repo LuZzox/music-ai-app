@@ -355,12 +355,29 @@ app.get('/auth/debug', (req, res) => {
   const debug = {
     hasSession: !!req.session,
     hasUserId: !!req.session?.userId,
+    userId: req.session?.userId || null,
+    userEmail: req.session?.userEmail || null,
     sessionId: req.sessionID,
-    cookies: req.headers.cookie ? 'present' : 'missing',
-    mongooseReady: mongoose.connection.readyState,
-    timestamp: new Date().toISOString()
+    cookiesHeader: req.headers.cookie ? 'present' : 'missing',
+    mongooseReadyState: mongoose.connection.readyState,
+    mongooseReadyStateLabel: mongoose.connection.readyState === 0 ? 'disconnected' : 
+                              mongoose.connection.readyState === 1 ? 'connected' : 
+                              mongoose.connection.readyState === 2 ? 'connecting' : 
+                              mongoose.connection.readyState === 3 ? 'disconnecting' : 'unknown',
+    timestamp: new Date().toISOString(),
+    mongoUri: process.env.MONGODB_URI ? 'set' : 'not set'
   };
+  console.log('[DEBUG] Session debug info:', debug);
   res.json(debug);
+});
+
+// Health check endpoint - no auth required
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    dbConnected: mongoose.connection.readyState === 1,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Define MusicManager class to manage MP3 files
