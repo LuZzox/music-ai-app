@@ -261,11 +261,16 @@ function storeToken(userId, email) {
 
 function validateToken(token) {
   const data = tokenStore.get(token);
-  if (!data) return null;
+  if (!data) {
+    console.log('[TOKEN] Token not found in store:', token.substring(0, 10) + '...');
+    return null;
+  }
   if (data.expiry < Date.now()) {
+    console.log('[TOKEN] Token expired:', token.substring(0, 10) + '...');
     tokenStore.delete(token);
     return null;
   }
+  console.log('[TOKEN] Token validated for user:', data.email);
   return data;
 }
 
@@ -273,6 +278,9 @@ function ensureAuthenticated(req, res, next) {
   const sessionId = req.sessionID;
   const hasSession = !!req.session;
   const userId = req.session?.userId;
+  const authHeader = req.headers.authorization || '';
+  
+  console.log('[AUTH] Checking auth - sessionID:', sessionId, 'hasSession:', hasSession, 'userId:', userId, 'authHeader:', authHeader ? 'present' : 'missing');
   
   // Check session first
   if (req.session && req.session.userId) {
@@ -281,17 +289,21 @@ function ensureAuthenticated(req, res, next) {
   }
   
   // Fall back to token auth (Authorization header)
-  const authHeader = req.headers.authorization || '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
   if (tokenMatch) {
     const token = tokenMatch[1];
+    console.log('[AUTH] Checking token auth:', token.substring(0, 10) + '...');
     const tokenData = validateToken(token);
     if (tokenData) {
       console.log('[AUTH] ✓ Token authenticated:', tokenData.email);
       req.session.userId = tokenData.userId;
       req.session.userEmail = tokenData.email;
       return next();
+    } else {
+      console.log('[AUTH] ✗ Token validation failed');
     }
+  } else {
+    console.log('[AUTH] No Bearer token in Authorization header');
   }
   
   console.log('[AUTH] ✗ Unauthorized - no session or valid token');

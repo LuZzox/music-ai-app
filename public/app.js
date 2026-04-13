@@ -210,6 +210,9 @@ function fetchApi(url, options = {}) {
     // Add token to Authorization header if available
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+        console.log('[FETCH] Using token for request to:', url);
+    } else {
+        console.log('[FETCH] No token available for request to:', url);
     }
     
     return fetch(url, { 
@@ -272,12 +275,18 @@ function clearOfflineUser() {
 function saveAuthToken(token) {
     if (token) {
         localStorage.setItem('musica-auth-token', token);
-        console.log('[TOKEN] Auth token saved');
+        console.log('[TOKEN] Auth token saved:', token.substring(0, 10) + '...');
     }
 }
 
 function getAuthToken() {
-    return localStorage.getItem('musica-auth-token');
+    const token = localStorage.getItem('musica-auth-token');
+    if (token) {
+        console.log('[TOKEN] Retrieved token:', token.substring(0, 10) + '...');
+    } else {
+        console.log('[TOKEN] No token found in localStorage');
+    }
+    return token;
 }
 
 function clearAuthToken() {
