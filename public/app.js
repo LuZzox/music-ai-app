@@ -426,6 +426,9 @@ function showApp() {
 }
 
 function checkAuth() {
+    const token = getAuthToken();
+    console.log('[CHECKAUTH] Starting auth check, token available:', !!token);
+    
     fetchApi(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);

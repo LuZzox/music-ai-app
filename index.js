@@ -453,9 +453,23 @@ app.post('/logout', (req, res) => {
 });
 
 app.get('/auth/user', (req, res) => {
+  // Check session first
   if (req.session && req.session.userId) {
     return res.json({ authenticated: true, user: { id: req.session.userId, email: req.session.userEmail } });
   }
+  
+  // Check token as fallback
+  const authHeader = req.headers.authorization || '';
+  const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
+  if (tokenMatch) {
+    const token = tokenMatch[1];
+    const tokenData = validateToken(token);
+    if (tokenData) {
+      console.log('[AUTH/USER] ✓ Token authenticated:', tokenData.email);
+      return res.json({ authenticated: true, user: { id: tokenData.userId, email: tokenData.email } });
+    }
+  }
+  
   res.json({ authenticated: false });
 });
 
