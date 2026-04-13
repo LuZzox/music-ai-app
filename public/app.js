@@ -1,6 +1,7 @@
 const DEFAULT_API_BASE = 'https://music-ai-app.onrender.com';
 let API_BASE = DEFAULT_API_BASE;
 let currentUser = null;
+let offlineMode = false;
 let currentTrackMeta = null;
 let currentPlaylistId = null;
 let currentLoopTrackIds = [];
@@ -294,6 +295,7 @@ function handleLogin() {
     })
     .then(user => {
         currentUser = user;
+        offlineMode = false;
         saveOfflineUser(user);
         document.getElementById('loginEmail').value = '';
         document.getElementById('loginPassword').value = '';
@@ -332,6 +334,7 @@ function handleSignup() {
     })
     .then(user => {
         currentUser = user;
+        offlineMode = false;
         saveOfflineUser(user);
         document.getElementById('signupEmail').value = '';
         document.getElementById('signupPassword').value = '';
@@ -351,6 +354,7 @@ function handleLogout() {
     fetchApi(resolveApiUrl('/logout'), { method: 'POST' })
     .then(() => {
         currentUser = null;
+        offlineMode = false;
         clearOfflineUser();
         document.getElementById('musicFile').value = '';
         showAuth();
@@ -380,12 +384,12 @@ function checkAuth() {
             const cachedUser = loadOfflineData('musica-offline-user');
             if (cachedUser) {
                 currentUser = cachedUser;
+                offlineMode = true;
                 loadBackendUrl();
                 showApp();
                 getMp3Files();
                 getQueue();
                 getPlaylists();
-                searchAllTracks();
                 setStatus('Offline mode: showing cached content');
                 return;
             }
@@ -393,6 +397,7 @@ function checkAuth() {
             return;
         }
         currentUser = body.user;
+        offlineMode = false;
         saveOfflineUser(body.user);
         loadBackendUrl();
         showApp();
@@ -405,12 +410,12 @@ function checkAuth() {
         const cachedUser = loadOfflineData('musica-offline-user');
         if (cachedUser) {
             currentUser = cachedUser;
+            offlineMode = true;
             loadBackendUrl();
             showApp();
             getMp3Files();
             getQueue();
             getPlaylists();
-            searchAllTracks();
             setStatus('Offline mode: showing cached content');
             return;
         }
@@ -589,6 +594,15 @@ function nextLibraryPage() {
 }
 
 async function searchAllTracks(query) {
+    if (!currentUser || offlineMode) {
+        const list = document.getElementById('searchResults');
+        if (list) {
+            list.innerHTML = '<li style="padding: 18px; text-align: center; color: #999;">Sign in to search or go online to search shared tracks.</li>';
+        }
+        setStatus('Please sign in or reconnect to search shared music');
+        return;
+    }
+
     const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
     const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
     if (!searchValue) {
@@ -908,11 +922,15 @@ async function playMp3(id, title = '', subtitle = '', options = {}) {
         return;
     }
 
+    if (!currentUser || offlineMode) {
+        setStatus('Please sign in or reconnect to play music');
+        return;
+    }
+
     currentTrackId = id;
     currentLoopTrackIds = [id];
 
     try {
-        await loadAudioSource(resolveApiUrl(`/play/${id}`));
         player.load();
         player.play().then(() => setPlayButtonState(true)).catch(error => {
             setStatus(`Playback error: ${error.message}`);
