@@ -1168,13 +1168,32 @@ function stopPlayback() {
 }
 
 async function handleTrackEnd() {
+    console.log('Track ended, loopMode:', loopMode, 'currentLoopTrackIds:', currentLoopTrackIds, 'currentTrackId:', currentTrackId);
     if (loopMode && currentLoopTrackIds.length > 0) {
         const queueItems = await fetchQueueItems();
+        console.log('Queue items:', queueItems.length);
         if (queueItems.length === 0) {
-            await queueTracks(currentLoopTrackIds, { silent: true });
+            // Don't loop a single track infinitely - disable loop mode instead
+            if (currentLoopTrackIds.length === 1) {
+                console.log('Disabling loop mode for single track');
+                loopMode = false;
+                localStorage.setItem('musica-loop-mode', false);
+                setStatus('Loop disabled - single track finished');
+                updateLoopButton();
+                return;
+            }
+            console.log('Re-queuing tracks for loop');
+            const tracksToQueue = currentLoopTrackIds.filter(id => id !== currentTrackId);
+            if (tracksToQueue.length === 0) {
+                // Last track in playlist, loop back to beginning
+                await queueTracks(currentLoopTrackIds, { silent: true });
+            } else {
+                await queueTracks(tracksToQueue, { silent: true });
+            }
             setStatus('Looping playlist');
         }
     }
+    console.log('Calling playNextFromQueue');
     playNextFromQueue();
 }
 
