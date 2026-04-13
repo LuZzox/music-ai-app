@@ -102,18 +102,32 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Configure session store with error handling
+const store = MongoStore.create({ 
+  mongoUrl: mongoUri, 
+  collectionName: 'sessions',
+  touchAfter: 24 * 3600 // lazy session update
+}).on('error', (err) => {
+  console.error('MongoStore error:', err);
+  console.error('Session store connection failed. Sessions may not persist.');
+});
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
   saveUninitialized: true,
-  store: MongoStore.create({ mongoUrl: mongoUri, collectionName: 'sessions' }),
+  store: store,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000,
     sameSite: 'none',
     secure: true,
-    httpOnly: true
-  }
+    httpOnly: true,
+    path: '/'
+  },
+  name: 'musica.sid'  // Custom session cookie name for debugging
 }));
+
 app.use(express.static('public'));
 
 class Mp3FileItem {
@@ -206,9 +220,16 @@ const queue = new Queue();
 const player = new Player();
 
 function ensureAuthenticated(req, res, next) {
+  const sessionId = req.sessionID;
+  const hasSession = !!req.session;
+  const userId = req.session?.userId;
+  
   if (req.session && req.session.userId) {
+    console.log('[AUTH] ✓ Request authenticated:', userId, 'sessionID:', sessionId);
     return next();
   }
+  
+  console.log('[AUTH] ✗ Unauthorized request - sessionID:', sessionId, 'hasSession:', hasSession, 'userId:', userId);
   res.status(401).json({ error: 'Unauthorized' });
 }
 
@@ -264,13 +285,15 @@ app.post('/signup', requireDatabase, async (req, res) => {
     req.session.userId = user._id;
     req.session.userEmail = user.email;
     req.session.displayName = user.displayName;
+    console.log('[SIGNUP] Session set for user:', user.email, 'SessionID:', req.sessionID);
     
     // Explicitly save session to MongoDB before responding
     req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('[SIGNUP] Session save error:', err);
         return res.status(500).json({ error: 'Failed to save session' });
       }
+      console.log('[SIGNUP] Session saved successfully for:', user.email);
       res.json({ id: user._id, email: user.email, displayName: user.displayName });
     });
   } catch (err) {
@@ -295,13 +318,15 @@ app.post('/login', requireDatabase, async (req, res) => {
     req.session.userId = user._id;
     req.session.userEmail = user.email;
     req.session.displayName = user.displayName;
+    console.log('[LOGIN] Session set for user:', user.email, 'SessionID:', req.sessionID);
     
     // Explicitly save session to MongoDB before responding
     req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('[LOGIN] Session save error:', err);
         return res.status(500).json({ error: 'Failed to save session' });
       }
+      console.log('[LOGIN] Session saved successfully for:', user.email);
       res.json({ id: user._id, email: user.email, displayName: user.displayName });
     });
   } catch (err) {
