@@ -264,7 +264,15 @@ app.post('/signup', requireDatabase, async (req, res) => {
     req.session.userId = user._id;
     req.session.userEmail = user.email;
     req.session.displayName = user.displayName;
-    res.json({ id: user._id, email: user.email, displayName: user.displayName });
+    
+    // Explicitly save session to MongoDB before responding
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      res.json({ id: user._id, email: user.email, displayName: user.displayName });
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -287,7 +295,15 @@ app.post('/login', requireDatabase, async (req, res) => {
     req.session.userId = user._id;
     req.session.userEmail = user.email;
     req.session.displayName = user.displayName;
-    res.json({ id: user._id, email: user.email, displayName: user.displayName });
+    
+    // Explicitly save session to MongoDB before responding
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      res.json({ id: user._id, email: user.email, displayName: user.displayName });
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -307,6 +323,19 @@ app.get('/auth/user', (req, res) => {
     return res.json({ authenticated: true, user: { id: req.session.userId, email: req.session.userEmail } });
   }
   res.json({ authenticated: false });
+});
+
+// Debug endpoint to check session status
+app.get('/auth/debug', (req, res) => {
+  const debug = {
+    hasSession: !!req.session,
+    hasUserId: !!req.session?.userId,
+    sessionId: req.sessionID,
+    cookies: req.headers.cookie ? 'present' : 'missing',
+    mongooseReady: mongoose.connection.readyState,
+    timestamp: new Date().toISOString()
+  };
+  res.json(debug);
 });
 
 // Define MusicManager class to manage MP3 files
