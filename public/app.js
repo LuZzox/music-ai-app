@@ -109,6 +109,10 @@ function resolveApiUrl(path) {
     return base ? `${base.replace(/\/$/, '')}${path}` : path;
 }
 
+function fetchApi(url, options = {}) {
+    return fetch(url, { credentials: 'include', ...options });
+}
+
 function storeOfflineData(key, data) {
     try {
         localStorage.setItem(key, JSON.stringify(data));
@@ -161,7 +165,7 @@ function handleLogin() {
         return;
     }
 
-    fetch(resolveApiUrl('/login'), {
+    fetchApi(resolveApiUrl('/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -199,7 +203,7 @@ function handleSignup() {
         return;
     }
 
-    fetch(resolveApiUrl('/signup'), {
+    fetchApi(resolveApiUrl('/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, displayName })
@@ -229,7 +233,7 @@ function handleSignup() {
 }
 
 function handleLogout() {
-    fetch(resolveApiUrl('/logout'), { method: 'POST' })
+    fetchApi(resolveApiUrl('/logout'), { method: 'POST' })
     .then(() => {
         currentUser = null;
         clearOfflineUser();
@@ -254,7 +258,7 @@ function showApp() {
 }
 
 function checkAuth() {
-    fetch(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
+    fetchApi(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok || !body || !body.authenticated) {
@@ -336,7 +340,7 @@ async function uploadMusic() {
         chunk.forEach(file => formData.append('music', file));
 
         try {
-            const response = await fetch(resolveApiUrl('/upload'), {
+const response = await fetchApi(resolveApiUrl('/upload'), {
                 method: 'POST',
                 body: formData,
                 headers: { 'Accept': 'application/json' }
@@ -363,7 +367,7 @@ async function uploadMusic() {
 async function safeFetch(url, options = {}) {
     const { cacheKey } = options;
     try {
-        const response = await fetch(url, options);
+        const response = await fetchApi(url, options);
         if (!response.ok) {
             const body = await response.text();
             throw new Error(`Server returned ${response.status}: ${body}`);
@@ -594,7 +598,7 @@ function renderSearchResults(data) {
 }
 
 function getPlaylists() {
-    fetch(resolveApiUrl('/playlists'))
+    fetchApi(resolveApiUrl('/playlists'))
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -644,7 +648,7 @@ function createPlaylist() {
         alert('Please enter a playlist name');
         return;
     }
-    fetch(resolveApiUrl('/playlists'), {
+    fetchApi(resolveApiUrl('/playlists'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
@@ -671,7 +675,7 @@ function addTrackToPlaylist(trackId) {
         alert('Select a playlist before adding tracks');
         return;
     }
-    fetch(resolveApiUrl(`/playlists/${currentPlaylistId}/tracks`), {
+    fetchApi(resolveApiUrl(`/playlists/${currentPlaylistId}/tracks`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackId })
@@ -695,7 +699,7 @@ function addTrackToPlaylist(trackId) {
 function loadPlaylistDetails(id, name) {
     currentPlaylistId = id;
     document.getElementById('currentPlaylistName').textContent = name;
-    fetch(resolveApiUrl(`/playlists/${id}`))
+    fetchApi(resolveApiUrl(`/playlists/${id}`))
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -771,7 +775,7 @@ function renderPlaylistTracks(tracks) {
 }
 
 function removeFromPlaylist(playlistId, trackId) {
-    fetch(resolveApiUrl(`/playlists/${playlistId}/tracks/${trackId}`), {
+    fetchApi(resolveApiUrl(`/playlists/${playlistId}/tracks/${trackId}`), {
         method: 'DELETE'
     })
     .then(async response => {
@@ -840,7 +844,7 @@ async function playCurrentPlaylist() {
 }
 
 function importTrack(id) {
-    fetch(resolveApiUrl(`/import/${id}`), {
+    fetchApi(resolveApiUrl(`/import/${id}`), {
         method: 'POST',
         headers: { 'Accept': 'application/json' }
     })
@@ -889,7 +893,7 @@ function playMp3(id, title = '', subtitle = '', options = {}) {
 }
 
 function playPrevFromQueue() {
-    fetch(resolveApiUrl('/play-prev'), { headers: { 'Accept': 'application/json' } })
+    fetchApi(resolveApiUrl('/play-prev'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -911,7 +915,7 @@ function playPrevFromQueue() {
 let loopMode = localStorage.getItem('musica-loop-mode') === 'true';
 
 function shuffleQueue() {
-    fetch(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
+    fetchApi(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -946,7 +950,7 @@ function updateLoopButton() {
 
 async function queueTrack(id, options = {}) {
     const { silent = false } = options;
-    const response = await fetch(resolveApiUrl(`/queue/${id}`), { method: 'POST', headers: { 'Accept': 'application/json' } });
+    const response = await fetchApi(resolveApiUrl(`/queue/${id}`), { method: 'POST', headers: { 'Accept': 'application/json' } });
     const body = await parseJsonOrText(response);
     if (!response.ok) {
         throw new Error(body?.error || body || 'Queue failed');
@@ -973,7 +977,7 @@ function addToQueue(id) {
 }
 
 async function getQueue() {
-    fetch(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } })
+    fetchApi(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -1017,7 +1021,7 @@ async function fetchQueueItems() {
 }
 
 function playNextFromQueue() {
-    fetch(resolveApiUrl('/play-next'), { headers: { 'Accept': 'application/json' } })
+    fetchApi(resolveApiUrl('/play-next'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
         if (!response.ok) {
@@ -1041,7 +1045,7 @@ function deleteMp3(id) {
         return;
     }
 
-    fetch(resolveApiUrl(`/mp3_files/${id}`), {
+    fetchApi(resolveApiUrl(`/mp3_files/${id}`), {
         method: 'DELETE'
     })
     .then(async response => {

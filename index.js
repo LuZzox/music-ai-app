@@ -96,7 +96,8 @@ app.use(session({
   store: MongoStore.create({ mongoUrl: mongoUri, collectionName: 'sessions' }),
   cookie: {
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: 'lax'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production'
   }
 }));
 app.use(express.static('public'));
