@@ -31,6 +31,11 @@ self.addEventListener('fetch', event => {
     return event.respondWith(fetch(event.request));
   }
 
+  // Don't cache authenticated requests or audio files
+  if (url.includes('/play/') || url.includes('/auth/') || event.request.headers.has('authorization')) {
+    return event.respondWith(fetch(event.request));
+  }
+
   event.respondWith(
     fetch(event.request)
       .then(networkResponse => {
