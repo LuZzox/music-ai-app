@@ -243,7 +243,13 @@ async function loadAudioSource(url) {
 
 function storeOfflineData(key, data) {
     try {
-        localStorage.setItem(key, JSON.stringify(data));
+        // Limit stored data size to prevent memory issues
+        const dataStr = JSON.stringify(data);
+        if (dataStr.length > 1024 * 1024) { // 1MB limit
+            console.warn('Data too large to cache:', key, dataStr.length, 'bytes');
+            return;
+        }
+        localStorage.setItem(key, dataStr);
     } catch (err) {
         console.warn('Failed to store offline data', err);
     }

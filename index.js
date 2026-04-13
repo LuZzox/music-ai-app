@@ -7,10 +7,24 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const mm = require('music-metadata');
 const app = express();
+
+// Memory management - force GC if available (only in development)
+if (global.gc && process.env.NODE_ENV === 'development') {
+  setInterval(() => {
+    global.gc();
+    console.log('Forced garbage collection');
+  }, 30 * 60 * 1000); // Every 30 minutes
+}
 // Définir mongoUri à partir de la variable d'environnement ou fallback local
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/music-app';
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB per file
+    files: 10 // Max 10 files per upload
+  }
+});
 // Warn if using default local connection in production environment
 if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
   console.warn('⚠️  WARNING: No MONGODB_URI set. Using default local MongoDB.');
@@ -129,23 +143,17 @@ const sessionConfig = {
   saveUninitialized: true,
   store: store,
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 12 * 60 * 60 * 1000, // Reduced from 24 to 12 hours
     sameSite: 'none',
     secure: true,
     httpOnly: true,
     path: '/',
-    domain: undefined  // Let browser handle domain automatically
+    domain: undefined
   },
   name: 'musica.sid'  // Custom session cookie name for debugging
 };
 
 app.use(session(sessionConfig));
-
-// Log session middleware initialization
-app.use((req, res, next) => {
-  console.log('[SESSION] Request - ID:', req.sessionID, 'Auth:', !!req.session?.userId);
-  next();
-});
 
 app.use(express.static('public'));
 
@@ -240,22 +248,36 @@ const player = new Player();
 
 // In-memory token store as fallback auth mechanism
 const tokenStore = new Map();
+let lastCleanup = Date.now();
 
 function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(16).toString('hex'); // Reduced from 32 to 16 bytes
+}
+
+function cleanupExpiredTokens() {
+  const now = Date.now();
+  // Only cleanup every 5 minutes to reduce CPU usage
+  if (now - lastCleanup < 5 * 60 * 1000) return;
+  
+  lastCleanup = now;
+  let cleaned = 0;
+  for (const [token, data] of tokenStore.entries()) {
+    if (data.expiry < now) {
+      tokenStore.delete(token);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.log(`Cleaned up ${cleaned} expired tokens`);
+  }
 }
 
 function storeToken(userId, email) {
+  cleanupExpiredTokens(); // Cleanup before storing new token
+  
   const token = generateToken();
   const expiry = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
   tokenStore.set(token, { userId, email, expiry });
-  
-  // Clean up old tokens
-  for (const [t, data] of tokenStore.entries()) {
-    if (data.expiry < Date.now()) {
-      tokenStore.delete(t);
-    }
-  }
   
   return token;
 }
@@ -517,15 +539,15 @@ app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
   }
   
   try {
-  const rows = await Mp3FileModel.aggregate([
-  { $match: { userId: new mongoose.Types.ObjectId(req.session.userId) } },
-  { $sort: { createdAt: -1 } },
-  { $limit: 120 }
-  ], {
-  allowDiskUse: true
-  });
+    // Use find() instead of aggregate for better memory usage
+    const rows = await Mp3FileModel.find({ userId: req.session.userId })
+      .sort({ createdAt: -1 })
+      .limit(50) // Reduced from 120 to 50
+      .lean(); // Use lean() to get plain objects, not Mongoose documents
+    
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
   } catch (err) {
+    console.error('mp3_files error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -630,20 +652,26 @@ app.get('/search', ensureAuthenticated, async (req, res) => {
   
   try {
     const query = (req.query.q || '').trim();
-
-    const match = query
-      ? { $text: { $search: query } } // 🔥 plus rapide que regex
-      : {};
-
-    const rows = await Mp3FileModel.aggregate([
-      { $match: match },
-      { $sort: { createdAt: -1 } },
-      { $limit: 120 }
-    ], { allowDiskUse: true }); // ✅ FIX ERREUR MÉMOIRE
+    
+    let rows;
+    if (query) {
+      // Use text search with lean()
+      rows = await Mp3FileModel.find({ $text: { $search: query } })
+        .sort({ createdAt: -1 })
+        .limit(30) // Reduced limit
+        .lean();
+    } else {
+      // Return recent tracks when no query
+      rows = await Mp3FileModel.find({ userId: req.session.userId })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean();
+    }
 
     res.json(rows.map(row => mapTrack(row, req.session.userId)));
 
   } catch (err) {
+    console.error('search error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
