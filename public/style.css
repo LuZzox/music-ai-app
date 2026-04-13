@@ -656,7 +656,10 @@ audio {
         align-items: stretch;
     }
 
-    .sidebar-group {
+    .sidebar-group,
+    .page-header,
+    .player-card,
+    .playlist-details-card .section-header {
         padding: 16px;
     }
 
@@ -676,21 +679,75 @@ audio {
         grid-template-columns: 1fr;
     }
 
-    .queue-controls {
-        flex-direction: column;
+    .card-row {
+        grid-template-columns: 1fr;
     }
 
-    .queue-controls button,
-    .loop-button {
-        width: 100%;
+    .search-row,
+    .playlist-create {
+        grid-template-columns: 1fr;
     }
 
     .track-item {
-        grid-template-columns: auto 1fr;
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    .track-item button {
+    .track-actions {
         width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        margin-left: 0;
+        margin-top: 12px;
+        gap: 8px;
+    }
+
+    .track-item button,
+    .playlist-item button,
+    .page-header button,
+    .sidebar-group button,
+    .search-row button,
+    .playlist-create button {
+        width: 100%;
+    }
+
+    .playlist-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .playlist-meta {
+        min-width: 0;
+    }
+
+    .track-thumb {
+        width: 48px;
+        height: 48px;
+    }
+
+    .player-panel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .player-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .progress-row {
+        grid-template-columns: 1fr;
+    }
+
+    .tab-btn {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .playlist-list li,
+    .playlist-details-card .playlist li {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
 
