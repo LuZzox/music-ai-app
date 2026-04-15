@@ -169,17 +169,18 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
+    const normalized = name === 'tracks' ? 'search' : name;
     const tabs = ['library', 'search', 'playlist'];
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`);
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
-        if (panel) panel.classList.toggle('active', tab === name);
-        if (button) button.classList.toggle('active', tab === name);
+        if (panel) panel.classList.toggle('active', tab === normalized);
+        if (button) button.classList.toggle('active', tab === normalized);
     });
-    if (name === 'search') {
+    if (normalized === 'search') {
         searchAllTracks();
     }
-    if (name === 'playlist') {
+    if (normalized === 'playlist') {
         getPlaylists();
     }
 }
