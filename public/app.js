@@ -169,18 +169,22 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
-    const normalized = name === 'tracks' ? 'search' : name;
-    const tabs = ['library', 'search', 'playlist'];
+    const tabs = ['library', 'search', 'playlist', 'tracks'];
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`);
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
-        if (panel) panel.classList.toggle('active', tab === normalized);
-        if (button) button.classList.toggle('active', tab === normalized);
+        if (panel) panel.classList.toggle('active', tab === name);
+        if (button) button.classList.toggle('active', tab === name);
     });
-    if (normalized === 'search') {
+    if (name === 'search') {
+        // Search tab: show search box for filtering
         searchAllTracks();
     }
-    if (normalized === 'playlist') {
+    if (name === 'tracks') {
+        // Tracks tab: show all shared tracks
+        loadAllTracks();
+    }
+    if (name === 'playlist') {
         getPlaylists();
     }
 }
@@ -664,11 +668,19 @@ async function searchAllTracks(query) {
     }
 
     const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
-    const cacheKey = searchValue ? `musica-offline-search-${searchValue}` : 'musica-offline-search';
-    const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
+    
+    // If no search query, show empty state with instructions
     if (!searchValue) {
-        setStatus('Showing all shared music');
+        const list = document.getElementById('searchResults');
+        if (list) {
+            list.innerHTML = '<li style="padding: 18px; text-align: center; color: #999;">Enter a search term to find tracks, or go to the <strong>Tracks</strong> tab to browse all shared music.</li>';
+        }
+        setStatus('Enter a search term');
+        return;
     }
+
+    const cacheKey = `musica-offline-search-${searchValue}`;
+    const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
 
     try {
         const data = await safeFetch(url, { cacheKey });
@@ -684,6 +696,54 @@ async function searchAllTracks(query) {
             list.innerHTML = `<li style="padding: 18px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
         }
     }
+}
+
+async function loadAllTracks() {
+    if (!currentUser || offlineMode) {
+        const list = document.getElementById('tracksResults');
+        if (list) {
+            list.innerHTML = '<li style="padding: 18px; text-align: center; color: #999;">Sign in to browse shared tracks.</li>';
+        }
+        setStatus('Please sign in to view shared tracks');
+        return;
+    }
+
+    const url = resolveApiUrl('/search');
+    setStatus('Loading shared tracks...');
+
+    try {
+        const data = await safeFetch(url, { cacheKey: 'musica-offline-alltracks' });
+        if (!data || !Array.isArray(data)) throw new Error('Invalid tracks response');
+
+        renderAllTracks(data);
+        setStatus(`Loaded ${data.length} shared tracks`);
+    } catch (error) {
+        console.error('loadAllTracks error:', error);
+        setStatus(`Failed to load tracks: ${error.message}`);
+        const list = document.getElementById('tracksResults');
+        if (list) {
+            list.innerHTML = `<li style="padding: 18px; text-align: center; color: #ff6b6b;">${error.message}</li>`;
+        }
+    }
+}
+
+function renderAllTracks(data) {
+    const list = document.getElementById('tracksResults');
+    list.innerHTML = '';
+    if (!Array.isArray(data) || data.length === 0) {
+        list.innerHTML = '<li style="padding: 18px; text-align: center; color: #999;">No shared tracks found.</li>';
+        return;
+    }
+    data.forEach(mp3 => {
+        const li = renderTrackItem(mp3, {
+            showDelete: false,
+            showImport: !mp3.owned,
+            showQueue: true,
+            showPlaylist: true,
+            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`
+        });
+        list.appendChild(li);
+    });
 }
 
 function renderSearchResults(data) {
