@@ -661,8 +661,8 @@ app.get('/search', ensureAuthenticated, async (req, res) => {
         .limit(30) // Reduced limit
         .lean();
     } else {
-      // Return recent tracks when no query
-      rows = await Mp3FileModel.find({ userId: req.session.userId })
+      // Return all recent shared tracks when no query (not just user's tracks)
+      rows = await Mp3FileModel.find({})
         .sort({ createdAt: -1 })
         .limit(30)
         .lean();
