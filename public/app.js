@@ -229,16 +229,31 @@ async function loadAudioSource(url) {
         delete player.dataset.objectUrl;
     }
 
-    const response = await fetchApi(url);
-    if (!response.ok) {
-        const body = await parseJsonOrText(response);
-        throw new Error(body?.error || body || `Audio fetch failed: ${response.status}`);
-    }
+    try {
+        const response = await fetchApi(url);
+        if (!response.ok) {
+            const body = await parseJsonOrText(response);
+            throw new Error(body?.error || body || `Audio fetch failed: ${response.status}`);
+        }
 
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    player.dataset.objectUrl = objectUrl;
-    player.src = objectUrl;
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        player.dataset.objectUrl = objectUrl;
+        player.src = objectUrl;
+    } catch (error) {
+        // Try to play cached audio when offline.
+        if ('caches' in window) {
+            const cachedResponse = await caches.match(url);
+            if (cachedResponse) {
+                const blob = await cachedResponse.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                player.dataset.objectUrl = objectUrl;
+                player.src = objectUrl;
+                return;
+            }
+        }
+        throw error;
+    }
 }
 
 function storeOfflineData(key, data) {

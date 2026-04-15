@@ -4,7 +4,8 @@ const ASSETS = [
   '/index.html',
   '/style.css',
   '/app.js',
-  '/manifest.json'
+  '/manifest.json',
+  '/sw.js'
 ];
 
 self.addEventListener('install', event => {
@@ -26,13 +27,27 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const { method, url } = event.request;
-  
   if (method !== 'GET') {
     return event.respondWith(fetch(event.request));
   }
 
-  // Don't cache authenticated requests or audio files
-  if (url.includes('/play/') || url.includes('/auth/') || event.request.headers.has('authorization')) {
+  // Cache audio and cover responses so they can be replayed offline after first load.
+  if (url.includes('/play/') || url.includes('/cover/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  if (url.includes('/auth/') || event.request.headers.has('authorization')) {
     return event.respondWith(fetch(event.request));
   }
 
