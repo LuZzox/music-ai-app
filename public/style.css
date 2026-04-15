@@ -290,6 +290,8 @@ button.logout-button:hover {
     padding: 0;
     display: grid;
     gap: 14px;
+    max-height: 70vh;
+    overflow-y: auto;
 }
 
 .track-item {
@@ -302,10 +304,23 @@ button.logout-button:hover {
     border-radius: 18px;
     transition: background 0.15s ease, transform 0.15s ease;
     cursor: pointer;
+    flex-wrap: wrap;
 }
 .track-item:hover {
     background: rgba(255, 255, 255, 0.04);
     transform: translateY(-1px);
+}
+
+.track-meta {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.track-meta span,
+.track-meta small {
+    display: block;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .track-actions {
@@ -313,8 +328,9 @@ button.logout-button:hover {
     align-items: center;
     gap: 8px;
     margin-left: auto;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .pagination-controls {
@@ -334,8 +350,8 @@ button.logout-button:hover {
 }
 
 .track-item button {
-    min-width: auto;
-    padding: 10px 14px;
+    min-width: 62px;
+    padding: 8px 12px;
 }
 
 .track-thumb {

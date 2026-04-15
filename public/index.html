@@ -120,34 +120,36 @@
                                     <p class="hint">Use this when the app is wrapped or deployed separately.</p>
                                 </div>
                             </div>
-
-                            <div class="sidebar-group card">
-                                <div class="sidebar-section">
-                                    <div class="section-header">
-                                        <h2>Saved Tracks</h2>
-                                        <p class="hint">Browse and play tracks you uploaded from your device.</p>
-                                    </div>
-                                    <ul id="mp3List" class="playlist"></ul>
-                                    <div id="libraryPagination" class="pagination-controls"></div>
-                                </div>
-                            </div>
                         </div>
                     </section>
 
                     <section id="searchTab" class="tab-panel">
-                        <section class="track-list card">
-                            <div class="section-header search-header">
-                                <div>
-                                    <h2>Shared Library</h2>
-                                    <p>Search all user-uploaded tracks in the shared music database.</p>
+                        <div class="card-row">
+                            <section class="track-list card">
+                                <div class="section-header">
+                                    <div>
+                                        <h2>Saved Tracks</h2>
+                                        <p>Browse and play your uploaded songs in the same list style.</p>
+                                    </div>
                                 </div>
-                                <div class="search-row">
-                                    <input type="text" id="searchInput" placeholder="Search shared tracks or leave blank for all">
-                                    <button onclick="searchAllTracks()">🔎 Search</button>
+                                <ul id="mp3List" class="playlist"></ul>
+                                <div id="libraryPagination" class="pagination-controls"></div>
+                            </section>
+
+                            <section class="track-list card">
+                                <div class="section-header search-header">
+                                    <div>
+                                        <h2>Shared Library</h2>
+                                        <p>Search all user-uploaded tracks in the shared music database.</p>
+                                    </div>
+                                    <div class="search-row">
+                                        <input type="text" id="searchInput" placeholder="Search shared tracks or leave blank for all">
+                                        <button onclick="searchAllTracks()">🔎 Search</button>
+                                    </div>
                                 </div>
-                            </div>
-                            <ul id="searchResults" class="playlist"></ul>
-                        </section>
+                                <ul id="searchResults" class="playlist"></ul>
+                            </section>
+                        </div>
                     </section>
 
                     <section id="playlistTab" class="tab-panel">
