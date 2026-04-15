@@ -724,7 +724,10 @@ app.get('/playlists', ensureAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/playlists', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.post('/playlists', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Database unavailable. Please try again.' });
+  }
   try {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -755,7 +758,10 @@ app.get('/playlists/:id', ensureAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/playlists/:id/tracks', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.post('/playlists/:id/tracks', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Database unavailable. Please try again.' });
+  }
   try {
     const { trackId } = req.body;
     if (!trackId) {
@@ -780,7 +786,10 @@ app.post('/playlists/:id/tracks', ensureAuthenticated, requireDatabase, async (r
   }
 });
 
-app.delete('/playlists/:id/tracks/:trackId', ensureAuthenticated, requireDatabase, async (req, res) => {
+app.delete('/playlists/:id/tracks/:trackId', ensureAuthenticated, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Database unavailable. Please try again.' });
+  }
   try {
     const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
     if (!playlist) {
