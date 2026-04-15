@@ -975,6 +975,7 @@ async function playMp3(id, title = '', subtitle = '', options = {}) {
     currentLoopTrackIds = [id];
 
     try {
+        await loadAudioSource(resolveApiUrl(`/play/${id}`));
         player.load();
         player.play().then(() => setPlayButtonState(true)).catch(error => {
             setStatus(`Playback error: ${error.message}`);
