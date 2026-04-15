@@ -663,13 +663,14 @@ async function searchAllTracks(query) {
     }
 
     const searchValue = query !== undefined ? query : document.getElementById('searchInput').value.trim();
+    const cacheKey = searchValue ? `musica-offline-search-${searchValue}` : 'musica-offline-search';
     const url = resolveApiUrl(`/search?q=${encodeURIComponent(searchValue)}`);
     if (!searchValue) {
         setStatus('Showing all shared music');
     }
 
     try {
-        const data = await safeFetch(url);
+        const data = await safeFetch(url, { cacheKey });
         if (!data || !Array.isArray(data)) throw new Error('Invalid search response');
 
         renderSearchResults(data);
@@ -704,21 +705,11 @@ function renderSearchResults(data) {
 }
 
 function getPlaylists() {
-    fetchApi(resolveApiUrl('/playlists'))
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            const cached = loadOfflineData('musica-offline-playlists');
-            if (cached) {
-                setStatus('Offline mode: showing cached playlists');
-                return cached;
-            }
-            throw new Error(body?.error || body || 'Failed to load playlists');
-        }
-        storeOfflineData('musica-offline-playlists', body);
-        return body;
-    })
+    safeFetch(resolveApiUrl('/playlists'), { cacheKey: 'musica-offline-playlists' })
     .then(data => {
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid playlists response');
+        }
         renderPlaylists(data);
     })
     .catch(error => {
@@ -819,22 +810,12 @@ function addTrackToPlaylist(trackId) {
 function loadPlaylistDetails(id, name) {
     currentPlaylistId = id;
     document.getElementById('currentPlaylistName').textContent = name;
-    fetchApi(resolveApiUrl(`/playlists/${id}`))
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            const cached = loadOfflineData(`musica-offline-playlist-${id}`);
-            if (cached) {
-                setStatus('Offline mode: showing cached playlist');
-                return cached;
-            }
-            throw new Error(body?.error || body || 'Failed to load playlist');
-        }
-        storeOfflineData(`musica-offline-playlist-${id}`, body);
-        return body;
-    })
+    safeFetch(resolveApiUrl(`/playlists/${id}`), { cacheKey: `musica-offline-playlist-${id}` })
     .then(data => {
-        renderPlaylistTracks(data.tracks || []);
+        if (!data || !Array.isArray(data.tracks)) {
+            throw new Error('Invalid playlist response');
+        }
+        renderPlaylistTracks(data.tracks);
     })
     .catch(error => {
         setStatus(`Playlist load error: ${error.message}`);
@@ -1088,28 +1069,14 @@ function addToQueue(id) {
 }
 
 async function getQueue() {
-    fetchApi(resolveApiUrl('/queue'), { headers: { 'Accept': 'application/json' } })
-    .then(async response => {
-        const body = await parseJsonOrText(response);
-        if (!response.ok) {
-            const cached = loadOfflineData('musica-offline-queue');
-            if (cached) {
-                setStatus('Offline mode: showing cached queue');
-                return cached;
-            }
-            throw new Error(body?.error || body || 'Queue load failed');
-        }
-        storeOfflineData('musica-offline-queue', body);
-        if (!Array.isArray(body)) {
-            console.error('Expected array, got:', body);
-            throw new Error('Invalid response format: expected array of queue items');
-        }
-        return body;
-    })
+    safeFetch(resolveApiUrl('/queue'), { cacheKey: 'musica-offline-queue' })
     .then(data => {
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid queue response');
+        }
         const queueList = document.getElementById('queueList');
         queueList.innerHTML = '';
-        if (data && Array.isArray(data) && data.length > 0) {
+        if (data.length > 0) {
             data.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'queue-item';
