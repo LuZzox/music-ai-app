@@ -3,9 +3,35 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
-const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs').promises;
 const crypto = require('crypto');
+
+// Memory management: Force garbage collection if available
+if (global.gc) {
+  setInterval(() => {
+    global.gc();
+  }, 30000); // Run GC every 30 seconds
+}
+
+// Configure multer for disk storage to avoid memory issues
+const uploadDir = path.join(__dirname, 'uploads');
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+const upload = multer({ storage });
+const mongoose = require('mongoose');
 const mm = require('music-metadata');
 const app = express();
 
@@ -16,6 +42,29 @@ if (global.gc && process.env.NODE_ENV === 'development') {
     console.log('Forced garbage collection');
   }, 30 * 60 * 1000); // Every 30 minutes
 }
+
+// Cleanup old temporary files periodically
+async function cleanupTempFiles() {
+  try {
+    const files = await fs.readdir(uploadDir);
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
+    for (const file of files) {
+      const filePath = path.join(uploadDir, file);
+      const stats = await fs.stat(filePath);
+      if (now - stats.mtime.getTime() > maxAge) {
+        await fs.unlink(filePath);
+        console.log(`Cleaned up old temp file: ${file}`);
+      }
+    }
+  } catch (err) {
+    console.error('Error cleaning up temp files:', err);
+  }
+}
+
+// Run cleanup every hour
+setInterval(cleanupTempFiles, 60 * 60 * 1000);
 
 const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sharly923_db_user:ToezxgfczzGfuRqc@cluster0.cvfltyn.mongodb.net/?appName=Cluster0';
 
@@ -487,16 +536,20 @@ app.post('/upload', ensureAuthenticated, upload.array('music'), async (req, res)
 
   for (const file of files) {
     const fileName = file.originalname;
-    const fileData = file.buffer;
-    const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
+    const filePath = file.path;
 
     try {
+      // Read file from disk instead of memory
+      const fileData = await fs.readFile(filePath);
+      const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
+
       const existing = await Mp3File.findOne({
         userId: req.session.userId,
         $or: [{ fileHash }, { fileName }]
       }).lean();
       if (existing) {
         skipped.push(fileName);
+        await fs.unlink(filePath); // Clean up temp file
         continue;
       }
 
@@ -515,8 +568,17 @@ app.post('/upload', ensureAuthenticated, upload.array('music'), async (req, res)
       const mp3File = new Mp3FileItem(result._id.toString(), fileName);
       queue.addMp3File(req.session.userId, mp3File);
       uploaded.push(fileName);
+
+      // Clean up temp file after successful storage
+      await fs.unlink(filePath);
     } catch (err) {
       skipped.push(`${fileName} (error: ${err.message})`);
+      // Clean up temp file on error
+      try {
+        await fs.unlink(filePath);
+      } catch (cleanupErr) {
+        console.error('Failed to cleanup temp file:', cleanupErr);
+      }
     }
   }
 
@@ -539,13 +601,17 @@ app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
 app.get('/play/:id', ensureAuthenticated, async (req, res) => {
   try {
     const row = await Mp3File.findById(req.params.id).lean();
-    if (!row) {
-      return res.status(404).json({ error: 'MP3 file not found' });
+    if (!row || !row.fileData || row.fileData.length === 0) {
+      return res.status(404).json({ error: 'MP3 file not found or missing audio data' });
     }
+
+    const audioBuffer = Buffer.isBuffer(row.fileData) ? row.fileData : Buffer.from(row.fileData);
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
-    res.send(row.fileData);
+    res.setHeader('Content-Length', audioBuffer.length);
+    res.end(audioBuffer);
   } catch (err) {
+    console.error('/play error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -613,9 +679,10 @@ app.post('/import/:id', ensureAuthenticated, async (req, res) => {
       return res.status(409).json({ error: 'You already have this track in your library' });
     }
 
+    // Create a copy without loading the full fileData into memory for the check
     const created = await Mp3File.create({
       fileName: source.fileName,
-      fileData: source.fileData,
+      fileData: source.fileData, // This will still use memory, but it's necessary for import
       fileHash: source.fileHash,
       coverData: source.coverData,
       coverMime: source.coverMime,
