@@ -1,6 +1,6 @@
 {
-  "appId": "com.musicify.app",
-  "appName": "Musicify",
+  "appId": "com.musica.app",
+  "appName": "musica",
   "webDir": "public",
   "bundledWebRuntime": false
 }

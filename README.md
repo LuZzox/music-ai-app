@@ -42,10 +42,10 @@ Cloud deployment:
 3. Another simple option is Railway or Heroku.
 
 Database setup:
-1. Create a MongoDB Atlas cluster or use any hosted MongoDB.
-2. Create a database user and get the connection URI.
-3. Add the following environment variable to your deployment:
-   - `MONGODB_URI` (e.g. `mongodb+srv://<user>:<pass>@cluster0.mongodb.net/musicify?retryWrites=true&w=majority`)
+1. The app uses SQLite database (music.db) which is created automatically.
+2. No additional database setup required - SQLite file is created locally and works in cloud deployments.
+3. Add the following environment variable for security:
+   - `SESSION_SECRET` (use a random string for session security)
 
 Render deployment steps:
 1. Push your project to GitHub.
