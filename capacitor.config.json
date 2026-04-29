@@ -2,5 +2,11 @@
   "appId": "com.musica.app",
   "appName": "musica",
   "webDir": "public",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  },
+  "icon": "public/icon.svg"
 }

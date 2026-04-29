@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" transform="matrix(-1,1.2246467991473532e-16,-1.2246467991473532e-16,-1,0,0)">
   <defs>
     <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1db954" />
-      <stop offset="100%" stop-color="#1ae16d" />
+      <stop offset="0%" stop-color="#1db954"></stop>
+      <stop offset="100%" stop-color="#1ae16d"></stop>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="96" ry="96" fill="url(#g)" />
-  <path d="M170 160h44v192c0 40 70 40 70 0V160h44v192c0 40 70 40 70 0V160h26v192c0 75-143 75-195 0V160z" fill="#fff" opacity="0.95"/>
+  <rect width="512" height="512" rx="95" ry="96" fill="url(#g)"></rect>
+  <path d="M128 160h44v192c0 40 70 40 70 0V160h44v192c0 40 70 40 70 0V160h26v192c0 75-143 75-195 0V160z" fill="#000" opacity="0.95"></path>
 </svg>

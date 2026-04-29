@@ -1,11 +1,14 @@
 const express = require('express');
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
+const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
+const Database = require('better-sqlite3');
+const mm = require('music-metadata');
+const app = express();
 
 // Memory management: Force garbage collection if available
 if (global.gc) {
@@ -26,14 +29,11 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}${path.extname(file.originalname)}`;
     cb(null, uniqueName);
   }
 });
 const upload = multer({ storage });
-const mongoose = require('mongoose');
-const mm = require('music-metadata');
-const app = express();
 
 // Memory management - force GC if available (only in development)
 if (global.gc && process.env.NODE_ENV === 'development') {
@@ -66,51 +66,167 @@ async function cleanupTempFiles() {
 // Run cleanup every hour
 setInterval(cleanupTempFiles, 60 * 60 * 1000);
 
-const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sharly923_db_user:ToezxgfczzGfuRqc@cluster0.cvfltyn.mongodb.net/?appName=Cluster0';
+const dbPath = path.join(__dirname, 'music.db');
+const db = new Database(dbPath);
 
-mongoose.set('strictQuery', false);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-  .then(() => console.log('✓ Connected to MongoDB'))
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  passwordHash TEXT NOT NULL,
+  displayName TEXT,
+  createdAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mp3_files (
+  id TEXT PRIMARY KEY,
+  fileName TEXT NOT NULL,
+  fileData BLOB,
+  fileHash TEXT,
+  coverData BLOB,
+  coverMime TEXT,
+  uploaderEmail TEXT,
+  uploaderName TEXT,
+  userId TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mp3_files_user_hash ON mp3_files(userId, fileHash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mp3_files_user_name ON mp3_files(userId, fileName);
+CREATE INDEX IF NOT EXISTS idx_mp3_files_user ON mp3_files(userId);
+CREATE TABLE IF NOT EXISTS playlists (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  trackIds TEXT,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(userId);
+`);
 
-const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash: { type: String, required: true },
-  displayName: String
-}, { timestamps: true });
+const getUserByEmailStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+const getUserByIdStmt = db.prepare('SELECT * FROM users WHERE id = ?');
+const insertUserStmt = db.prepare('INSERT INTO users (id, email, passwordHash, displayName, createdAt) VALUES (?, ?, ?, ?, ?)');
+const listMp3ByUserStmt = db.prepare('SELECT id, fileName, uploaderName, createdAt, userId FROM mp3_files WHERE userId = ? ORDER BY createdAt DESC');
+const getMp3ByIdStmt = db.prepare('SELECT * FROM mp3_files WHERE id = ?');
+const deleteMp3FileStmt = db.prepare('DELETE FROM mp3_files WHERE id = ? AND userId = ?');
+const findExistingMp3Stmt = db.prepare('SELECT id FROM mp3_files WHERE userId = ? AND (fileHash = ? OR fileName = ?) LIMIT 1');
+const insertMp3FileStmt = db.prepare('INSERT INTO mp3_files (id, fileName, fileData, fileHash, coverData, coverMime, uploaderEmail, uploaderName, userId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+const searchMp3Stmt = db.prepare('SELECT id, fileName, uploaderName, createdAt, userId FROM mp3_files WHERE fileName LIKE ? ORDER BY createdAt DESC LIMIT 30');
+const listRecentMp3Stmt = db.prepare('SELECT id, fileName, uploaderName, createdAt, userId FROM mp3_files ORDER BY createdAt DESC LIMIT 30');
+const getPlaylistByIdStmt = db.prepare('SELECT * FROM playlists WHERE id = ? AND userId = ?');
+const listPlaylistsStmt = db.prepare('SELECT id, name, trackIds, createdAt FROM playlists WHERE userId = ? ORDER BY createdAt DESC');
+const insertPlaylistStmt = db.prepare('INSERT INTO playlists (id, name, userId, trackIds, createdAt) VALUES (?, ?, ?, ?, ?)');
+const updatePlaylistStmt = db.prepare('UPDATE playlists SET trackIds = ? WHERE id = ? AND userId = ?');
 
-const mp3FileSchema = new mongoose.Schema({
-  fileName: { type: String, required: true },
-  fileData: Buffer,
-  fileHash: String,
-  coverData: Buffer,
-  coverMime: String,
-  uploaderEmail: String,
-  uploaderName: String,
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
+function getUserByEmail(email) {
+  return getUserByEmailStmt.get(email.toLowerCase());
+}
 
-mp3FileSchema.index({ userId: 1, fileHash: 1 }, { unique: true, partialFilterExpression: { userId: { $exists: true }, fileHash: { $exists: true } } });
-mp3FileSchema.index({ userId: 1, fileName: 1 }, { unique: true, partialFilterExpression: { userId: { $exists: true }, fileName: { $exists: true } } });
+function getUserById(id) {
+  return getUserByIdStmt.get(id);
+}
 
-const playlistSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  trackIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mp3File' }]
-}, { timestamps: true });
+function createUser(email, passwordHash, displayName) {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  insertUserStmt.run(id, email.toLowerCase(), passwordHash, displayName || null, createdAt);
+  return { id, email: email.toLowerCase(), displayName: displayName || null, createdAt };
+}
 
-const User = mongoose.model('User', userSchema);
-const Mp3File = mongoose.model('Mp3File', mp3FileSchema);
-const Playlist = mongoose.model('Playlist', playlistSchema);
+function getMp3FilesByUser(userId) {
+  return listMp3ByUserStmt.all(userId);
+}
 
-app.use(express.json());
+function getMp3FileById(id) {
+  return getMp3ByIdStmt.get(id);
+}
+
+function deleteMp3File(userId, id) {
+  return deleteMp3FileStmt.run(id, userId);
+}
+
+function findExistingMp3(userId, fileHash, fileName) {
+  return findExistingMp3Stmt.get(userId, fileHash, fileName);
+}
+
+function createMp3File(data) {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  insertMp3FileStmt.run(
+    id,
+    data.fileName,
+    data.fileData,
+    data.fileHash,
+    data.coverData || null,
+    data.coverMime || null,
+    data.uploaderEmail,
+    data.uploaderName,
+    data.userId,
+    createdAt
+  );
+  return { id, ...data, createdAt };
+}
+
+function searchMp3Files(query) {
+  const searchQuery = `%${query.replace(/[%_]/g, '\$&')}%`;
+  return searchMp3Stmt.all(searchQuery);
+}
+
+function listRecentMp3Files() {
+  return listRecentMp3Stmt.all();
+}
+
+function getPlaylistById(userId, id) {
+  const row = getPlaylistByIdStmt.get(id, userId);
+  if (!row) return null;
+  return { ...row, trackIds: row.trackIds ? JSON.parse(row.trackIds) : [] };
+}
+
+function listPlaylists(userId) {
+  return listPlaylistsStmt.all(userId).map(row => ({
+    id: row.id,
+    name: row.name,
+    trackIds: row.trackIds ? JSON.parse(row.trackIds) : [],
+    createdAt: row.createdAt
+  }));
+}
+
+function createPlaylist(name, userId) {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  insertPlaylistStmt.run(id, name, userId, JSON.stringify([]), createdAt);
+  return { id, name, userId, trackIds: [], createdAt };
+}
+
+function savePlaylistTracks(id, userId, trackIds) {
+  updatePlaylistStmt.run(JSON.stringify(trackIds), id, userId);
+}
+
+const sessionStore = new SQLiteStore({
+  db: 'sessions.db',
+  dir: __dirname,
+  concurrentDB: true
+});
+
+const sessionConfig = {
+  secret: process.env.SESSION_SECRET || 'change-this-secret',
+  resave: false,
+  saveUninitialized: false,
+  store: sessionStore,
+  cookie: {
+    maxAge: 12 * 60 * 60 * 1000,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    path: '/',
+    domain: undefined
+  },
+  name: 'musica.sid'
+};
+
+app.use(express.json({ limit: '10mb' }));
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin) {
@@ -124,29 +240,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// Configure MongoDB session store
-const sessionStore = MongoStore.create({
-  mongoUrl: mongoUri,
-  collectionName: 'sessions',
-  ttl: 14 * 24 * 60 * 60
-});
-
-const sessionConfig = {
-  secret: process.env.SESSION_SECRET || 'change-this-secret',
-  resave: false,
-  saveUninitialized: true,
-  store: sessionStore,
-  cookie: {
-    maxAge: 12 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    path: '/',
-    domain: undefined
-  },
-  name: 'musica.sid'
-};
 
 app.use(session(sessionConfig));
 
@@ -342,41 +435,37 @@ app.post('/signup', async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
   try {
-    const existing = await User.findOne({ email: email.toLowerCase() }).lean();
+    const existing = getUserByEmail(email);
     if (existing) {
       return res.status(409).json({ error: 'Email already registered' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = await User.create({
-      email: email.toLowerCase(),
-      passwordHash,
-      displayName
-    });
-    const userId = newUser._id.toString();
+    const newUser = createUser(email, passwordHash, displayName);
+    const userId = newUser.id;
 
     req.session.userId = userId;
-    req.session.userEmail = email.toLowerCase();
-    req.session.displayName = displayName;
+    req.session.userEmail = newUser.email;
+    req.session.displayName = newUser.displayName;
     console.log('[SIGNUP] Session set for user:', email, 'SessionID:', req.sessionID);
 
-    const token = storeToken(userId, email.toLowerCase());
+    const token = storeToken(userId, newUser.email);
 
     req.session.save((err) => {
       if (err) {
         console.error('[SIGNUP] Session save error:', err);
-        return res.json({ 
-          id: userId, 
-          email: email.toLowerCase(), 
-          displayName: displayName,
+        return res.json({
+          id: userId,
+          email: newUser.email,
+          displayName: newUser.displayName,
           token: token,
           authMethod: 'token-fallback'
         });
       }
       console.log('[SIGNUP] Session saved successfully for:', email);
-      res.json({ 
-        id: userId, 
-        email: email.toLowerCase(), 
-        displayName: displayName,
+      res.json({
+        id: userId,
+        email: newUser.email,
+        displayName: newUser.displayName,
         token: token,
         authMethod: 'session'
       });
@@ -392,7 +481,7 @@ app.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = getUserByEmail(email);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -400,28 +489,28 @@ app.post('/login', async (req, res) => {
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-    req.session.userId = user._id.toString();
+    req.session.userId = user.id;
     req.session.userEmail = user.email;
     req.session.displayName = user.displayName;
     console.log('[LOGIN] Session set for user:', user.email, 'SessionID:', req.sessionID);
 
-    const token = storeToken(user._id.toString(), user.email);
+    const token = storeToken(user.id, user.email);
 
     req.session.save((err) => {
       if (err) {
         console.error('[LOGIN] Session save error:', err);
-        return res.json({ 
-          id: user._id.toString(), 
-          email: user.email, 
+        return res.json({
+          id: user.id,
+          email: user.email,
           displayName: user.displayName,
           token: token,
           authMethod: 'token-fallback'
         });
       }
       console.log('[LOGIN] Session saved successfully for:', user.email);
-      res.json({ 
-        id: user._id.toString(), 
-        email: user.email, 
+      res.json({
+        id: user.id,
+        email: user.email,
         displayName: user.displayName,
         token: token,
         authMethod: 'session'
@@ -506,9 +595,9 @@ module.exports = { Queue, Player, MusicManager, app };
 
 app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
   try {
-    const rows = await Mp3File.find({ userId: req.session.userId }).sort({ createdAt: -1 }).lean();
+    const rows = getMp3FilesByUser(req.session.userId);
     res.json(rows.map(row => ({
-      id: row._id.toString(),
+      id: row.id,
       fileName: row.fileName,
       uploaderName: row.uploaderName,
       createdAt: row.createdAt,
@@ -539,22 +628,18 @@ app.post('/upload', ensureAuthenticated, upload.array('music'), async (req, res)
     const filePath = file.path;
 
     try {
-      // Read file from disk instead of memory
       const fileData = await fs.readFile(filePath);
       const fileHash = crypto.createHash('sha256').update(fileData).digest('hex');
 
-      const existing = await Mp3File.findOne({
-        userId: req.session.userId,
-        $or: [{ fileHash }, { fileName }]
-      }).lean();
+      const existing = findExistingMp3(req.session.userId, fileHash, fileName);
       if (existing) {
         skipped.push(fileName);
-        await fs.unlink(filePath); // Clean up temp file
+        await fs.unlink(filePath);
         continue;
       }
 
       const cover = await parseCoverDataFromBuffer(fileData, file.mimetype);
-      const result = await Mp3File.create({
+      const result = createMp3File({
         fileName,
         fileData,
         fileHash,
@@ -565,15 +650,13 @@ app.post('/upload', ensureAuthenticated, upload.array('music'), async (req, res)
         userId: req.session.userId
       });
 
-      const mp3File = new Mp3FileItem(result._id.toString(), fileName);
+      const mp3File = new Mp3FileItem(result.id, fileName);
       queue.addMp3File(req.session.userId, mp3File);
       uploaded.push(fileName);
 
-      // Clean up temp file after successful storage
       await fs.unlink(filePath);
     } catch (err) {
       skipped.push(`${fileName} (error: ${err.message})`);
-      // Clean up temp file on error
       try {
         await fs.unlink(filePath);
       } catch (cleanupErr) {
@@ -587,8 +670,8 @@ app.post('/upload', ensureAuthenticated, upload.array('music'), async (req, res)
 
 app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const result = await Mp3File.deleteOne({ _id: req.params.id, userId: req.session.userId });
-    if (result.deletedCount === 0) {
+    const result = deleteMp3File(req.session.userId, req.params.id);
+    if (result.changes === 0) {
       return res.status(404).json({ error: 'Track not found' });
     }
     queue.removeMp3File(req.session.userId, req.params.id);
@@ -600,7 +683,7 @@ app.delete('/mp3_files/:id', ensureAuthenticated, async (req, res) => {
 
 app.get('/play/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const row = await Mp3File.findById(req.params.id).lean();
+    const row = getMp3FileById(req.params.id);
     if (!row || !row.fileData || row.fileData.length === 0) {
       return res.status(404).json({ error: 'MP3 file not found or missing audio data' });
     }
@@ -618,7 +701,7 @@ app.get('/play/:id', ensureAuthenticated, async (req, res) => {
 
 app.get('/cover/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const row = await Mp3File.findById(req.params.id).lean();
+    const row = getMp3FileById(req.params.id);
     if (!row || !row.coverData || !row.coverMime) {
       return res.status(404).json({ error: 'Cover not found' });
     }
@@ -633,26 +716,14 @@ app.get('/search', ensureAuthenticated, async (req, res) => {
   try {
     const query = (req.query.q || '').trim();
 
-    let rows;
-    if (query) {
-      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      rows = await Mp3File.find({ fileName: new RegExp(escaped, 'i') })
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .lean();
-    } else {
-      rows = await Mp3File.find()
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .lean();
-    }
+    const rows = query ? searchMp3Files(query) : listRecentMp3Files();
 
     res.json(rows.map(row => ({
-      id: row._id.toString(),
+      id: row.id,
       fileName: row.fileName,
       uploaderName: row.uploaderName,
       createdAt: row.createdAt,
-      owned: row.userId?.toString() === req.session.userId
+      owned: row.userId === req.session.userId
     })));
 
   } catch (err) {
@@ -663,26 +734,22 @@ app.get('/search', ensureAuthenticated, async (req, res) => {
 
 app.post('/import/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const source = await Mp3File.findById(req.params.id).lean();
+    const source = getMp3FileById(req.params.id);
     if (!source) {
       return res.status(404).json({ error: 'Track not found' });
     }
-    if (source.userId?.toString() === req.session.userId) {
+    if (source.userId === req.session.userId) {
       return res.status(409).json({ error: 'Track already in your library' });
     }
 
-    const existing = await Mp3File.findOne({
-      userId: req.session.userId,
-      $or: [{ fileHash: source.fileHash }, { fileName: source.fileName }]
-    }).lean();
+    const existing = findExistingMp3(req.session.userId, source.fileHash, source.fileName);
     if (existing) {
       return res.status(409).json({ error: 'You already have this track in your library' });
     }
 
-    // Create a copy without loading the full fileData into memory for the check
-    const created = await Mp3File.create({
+    const created = createMp3File({
       fileName: source.fileName,
-      fileData: source.fileData, // This will still use memory, but it's necessary for import
+      fileData: source.fileData,
       fileHash: source.fileHash,
       coverData: source.coverData,
       coverMime: source.coverMime,
@@ -691,9 +758,9 @@ app.post('/import/:id', ensureAuthenticated, async (req, res) => {
       userId: req.session.userId
     });
 
-    const mp3File = new Mp3FileItem(created._id.toString(), source.fileName);
+    const mp3File = new Mp3FileItem(created.id, source.fileName);
     queue.addMp3File(req.session.userId, mp3File);
-    res.status(201).json({ id: created._id.toString(), fileName: source.fileName });
+    res.status(201).json({ id: created.id, fileName: source.fileName });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -701,11 +768,11 @@ app.post('/import/:id', ensureAuthenticated, async (req, res) => {
 
 app.get('/playlists', ensureAuthenticated, async (req, res) => {
   try {
-    const playlists = await Playlist.find({ userId: req.session.userId }).sort({ createdAt: -1 }).lean();
+    const playlists = listPlaylists(req.session.userId);
     res.json(playlists.map(item => ({
-      id: item._id.toString(),
+      id: item.id,
       name: item.name,
-      trackCount: item.trackIds?.length || 0
+      trackCount: item.trackIds.length
     })));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -718,12 +785,8 @@ app.post('/playlists', ensureAuthenticated, async (req, res) => {
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Playlist name is required' });
     }
-    const result = await Playlist.create({
-      name: name.trim(),
-      userId: req.session.userId,
-      trackIds: []
-    });
-    res.status(201).json({ id: result._id.toString(), name: name.trim() });
+    const result = createPlaylist(name.trim(), req.session.userId);
+    res.status(201).json({ id: result.id, name: result.name });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -731,25 +794,24 @@ app.post('/playlists', ensureAuthenticated, async (req, res) => {
 
 app.get('/playlists/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId }).lean();
+    const playlist = getPlaylistById(req.session.userId, req.params.id);
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
     }
-    const trackIds = playlist.trackIds || [];
-    if (trackIds.length === 0) {
-      return res.json({ id: playlist._id.toString(), name: playlist.name, tracks: [] });
+    if (playlist.trackIds.length === 0) {
+      return res.json({ id: playlist.id, name: playlist.name, tracks: [] });
     }
 
-    const tracks = await Mp3File.find({ _id: { $in: trackIds } }).lean();
-    res.json({ 
-      id: playlist._id.toString(), 
-      name: playlist.name, 
+    const tracks = playlist.trackIds.map(trackId => getMp3FileById(trackId)).filter(Boolean);
+    res.json({
+      id: playlist.id,
+      name: playlist.name,
       tracks: tracks.map(row => ({
-        id: row._id.toString(),
+        id: row.id,
         fileName: row.fileName,
         uploaderName: row.uploaderName,
         createdAt: row.createdAt,
-        owned: row.userId?.toString() === req.session.userId
+        owned: row.userId === req.session.userId
       }))
     });
   } catch (err) {
@@ -763,20 +825,20 @@ app.post('/playlists/:id/tracks', ensureAuthenticated, async (req, res) => {
     if (!trackId) {
       return res.status(400).json({ error: 'trackId is required' });
     }
-    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
+    const playlist = getPlaylistById(req.session.userId, req.params.id);
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
     }
-    const track = await Mp3File.findById(trackId).lean();
+    const track = getMp3FileById(trackId);
     if (!track) {
       return res.status(404).json({ error: 'Track not found' });
     }
-    const existingIds = playlist.trackIds.map(id => id.toString());
+    const existingIds = playlist.trackIds;
     if (existingIds.includes(trackId)) {
       return res.status(409).json({ error: 'Track already in playlist' });
     }
-    playlist.trackIds.push(trackId);
-    await playlist.save();
+    existingIds.push(trackId);
+    savePlaylistTracks(req.params.id, req.session.userId, existingIds);
     res.json({ message: 'Track added to playlist' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -785,12 +847,12 @@ app.post('/playlists/:id/tracks', ensureAuthenticated, async (req, res) => {
 
 app.delete('/playlists/:id/tracks/:trackId', ensureAuthenticated, async (req, res) => {
   try {
-    const playlist = await Playlist.findOne({ _id: req.params.id, userId: req.session.userId });
+    const playlist = getPlaylistById(req.session.userId, req.params.id);
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
     }
-    playlist.trackIds = playlist.trackIds.filter(id => id.toString() !== req.params.trackId);
-    await playlist.save();
+    const filtered = playlist.trackIds.filter(id => id !== req.params.trackId);
+    savePlaylistTracks(req.params.id, req.session.userId, filtered);
     res.json({ message: 'Track removed from playlist' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -804,12 +866,12 @@ app.get('/stop', ensureAuthenticated, (req, res) => {
 
 app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const row = await Mp3File.findById(req.params.id).lean();
+    const row = getMp3FileById(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'MP3 file not found' });
     }
 
-    const mp3File = new Mp3FileItem(row._id.toString(), row.fileName);
+    const mp3File = new Mp3FileItem(row.id, row.fileName);
     queue.addMp3File(req.session.userId, mp3File);
     res.json({ message: 'Added to queue', file: mp3File });
   } catch (err) {
