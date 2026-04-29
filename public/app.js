@@ -67,21 +67,26 @@ function renderTrackItem(mp3, options = {}) {
     const { showDelete = false, showImport = false, showQueue = true, showPlaylist = true, extraSubtitle = '' } = options;
     const li = document.createElement('li');
     li.className = 'track-item compact';
+
+    const trackTitle = mp3.fileName || mp3.file_name || mp3.title || `Track ${mp3.id}`;
+    const trackAuthor = mp3.uploaderName || mp3.uploaderEmail || mp3.artist || '';
+    const trackSubtitle = trackAuthor ? `By ${trackAuthor}` : extraSubtitle || `Track ${mp3.id}`;
+
     li.onclick = event => {
         if (event.target.closest('button')) return;
-        playMp3(mp3.id, mp3.file_name, mp3.uploaderEmail ? `By ${mp3.uploaderEmail}` : extraSubtitle || 'Playing now');
+        playMp3(mp3.id, trackTitle, trackSubtitle);
     };
 
     const thumb = document.createElement('div');
     thumb.className = 'track-thumb';
-    applyCoverToElement(thumb, mp3.file_name, mp3.coverUrl);
+    applyCoverToElement(thumb, trackTitle, mp3.coverUrl);
 
     const meta = document.createElement('div');
     meta.className = 'track-meta';
     const title = document.createElement('span');
-    title.textContent = mp3.file_name;
+    title.textContent = trackTitle;
     const subtitle = document.createElement('small');
-    subtitle.textContent = mp3.uploaderEmail ? `By ${mp3.uploaderEmail}` : extraSubtitle || `Track ${mp3.id}`;
+    subtitle.textContent = trackSubtitle;
     meta.appendChild(title);
     meta.appendChild(subtitle);
 
@@ -740,7 +745,7 @@ function renderAllTracks(data) {
             showImport: !mp3.owned,
             showQueue: true,
             showPlaylist: true,
-            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`
+            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderName || mp3.uploaderEmail || 'Community'}`
         });
         list.appendChild(li);
     });
@@ -759,7 +764,7 @@ function renderSearchResults(data) {
             showImport: !mp3.owned,
             showQueue: true,
             showPlaylist: true,
-            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderEmail || 'Community'}`
+            extraSubtitle: mp3.owned ? 'Your library' : `Shared by ${mp3.uploaderName || mp3.uploaderEmail || 'Community'}`
         });
         list.appendChild(li);
     });
