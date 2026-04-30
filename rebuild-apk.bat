@@ -13,6 +13,12 @@ echo   (Using Render backend)
 echo ========================================
 echo.
 
+REM Step 0: Generate Assets (Icon/Splash) if assets folder exists
+if exist "assets\icon.png" (
+    echo [0/4] Generating Android assets...
+    call npx @capacitor/assets generate --android
+)
+
 REM Step 1: Copy web assets
 echo [1/4] Copying web assets...
 call npm run cap:copy
