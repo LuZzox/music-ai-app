@@ -125,6 +125,10 @@ async function getMp3FileById(id) {
   return await Mp3File.findById(id);
 }
 
+async function getMp3FileMetadataById(id) {
+  return await Mp3File.findById(id).select('fileName uploaderName uploaderEmail userId createdAt');
+}
+
 async function deleteMp3File(userId, id) {
   return await Mp3File.deleteOne({ _id: id, userId });
 }
@@ -565,6 +569,20 @@ app.get('/mp3_files', ensureAuthenticated, async (req, res) => {
   }
 });
 
+app.get('/track-meta/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const track = await getMp3FileMetadataById(req.params.id);
+    if (!track) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+    // Utilise mapTrack pour formater les métadonnées pour le frontend
+    res.json(mapTrack(track, req.session.userId));
+  } catch (err) {
+    console.error('/track-meta error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/mp3_files', ensureAuthenticated, (req, res) => {
   const mp3File = new Mp3FileItem(req.body.id, req.body.fileName);
   res.status(201).send(`MP3 file added: ${mp3File.fileName}`);
@@ -757,7 +775,7 @@ app.get('/playlists/:id', ensureAuthenticated, async (req, res) => {
       return res.json({ id: playlist.id, name: playlist.name, tracks: [] });
     }
 
-    const tracksData = await Promise.all(playlist.trackIds.map(id => getMp3FileById(id)));
+    const tracksData = await Promise.all(playlist.trackIds.map(id => getMp3FileMetadataById(id))); // Récupère seulement les métadonnées
     const tracks = tracksData.filter(Boolean);
     res.json({
       id: playlist.id,

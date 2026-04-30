@@ -74,7 +74,7 @@ function renderTrackItem(mp3, options = {}) {
 
     li.onclick = event => {
         if (event.target.closest('button')) return;
-        playMp3(mp3.id, trackTitle, trackSubtitle);
+        playMp3(mp3.id); // La fonction playMp3 va chercher ses propres métadonnées
     };
 
     const thumb = document.createElement('div');
@@ -98,7 +98,7 @@ function renderTrackItem(mp3, options = {}) {
     playButton.title = 'Play';
     playButton.onclick = (event) => {
         event.stopPropagation();
-        playMp3(mp3.id, mp3.file_name, subtitle.textContent);
+        playMp3(mp3.id); // La fonction playMp3 va chercher ses propres métadonnées
     };
     actions.appendChild(playButton);
 
@@ -1014,36 +1014,48 @@ function importTrack(id) {
 
 let currentTrackId = null;
 
-async function playMp3(id, title = '', subtitle = '', options = {}) {
+async function playMp3(id, options = {}) { // Suppression des arguments title et subtitle
     const player = document.getElementById('audioPlayer');
     const { force = false } = options;
-    const trackTitle = title || `Track ${id}`;
-    const trackSubtitle = subtitle || 'Playing now';
+
+    // Récupère les détails complets de la piste pour assurer le titre/sous-titre correct
+    let trackDetails = null;
+    try {
+        const response = await fetchApi(resolveApiUrl(`/track-meta/${id}`));
+        if (response.ok) {
+            trackDetails = await response.json();
+        }
+    } catch (error) {
+        console.warn('Échec de la récupération des détails de la piste pour la lecture :', error);
+    }
+
+    const actualTitle = trackDetails?.file_name || `Track ${id}`;
+    const actualSubtitle = trackDetails?.uploaderName ? `By ${trackDetails.uploaderName}` : 'Playing now';
 
     if (!force && currentTrackId && currentTrackId.toString() === id.toString() && player.src) {
         player.play().then(() => setPlayButtonState(true)).catch(error => {
-            setStatus(`Playback error: ${error.message}`);
+            setStatus(`Erreur de lecture : ${error.message}`);
             setPlayButtonState(false);
         });
         return;
     }
 
     if (!currentUser || offlineMode) {
-        setStatus('Please sign in or reconnect to play music');
+        setStatus('Veuillez vous connecter ou vous reconnecter pour écouter de la musique');
         return;
     }
 
     currentTrackId = id;
-    currentLoopTrackIds = [id];
+    currentLoopTrackIds = [id]; // Réinitialise la boucle pour la lecture d'une seule piste
 
     try {
         await loadAudioSource(resolveApiUrl(`/play/${id}`));
         player.load();
         player.play().then(() => setPlayButtonState(true)).catch(error => {
-            setStatus(`Playback error: ${error.message}`);
+            setStatus(`Erreur de lecture : ${error.message}`); // Cela pourrait être un problème de geste de l'utilisateur
             setPlayButtonState(false);
         });
-        updateNowPlaying({ title: trackTitle, subtitle: trackSubtitle, status: `Playing ${trackTitle}` });
+        updateNowPlaying({ title: actualTitle, subtitle: actualSubtitle, status: `Lecture de ${actualTitle}` });
     } catch (error) {
         setStatus(`Playback error: ${error.message}`);
         setPlayButtonState(false);
@@ -1058,7 +1070,7 @@ function playPrevFromQueue() {
             throw new Error(body?.error || body || 'Play previous failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Previous track', { force: true });
+            playMp3(body.playing.id, { force: true }); // La fonction playMp3 va chercher ses propres métadonnées
             setStatus(`Playing previous track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
@@ -1172,7 +1184,7 @@ function playNextFromQueue() {
             throw new Error(body?.error || body || 'Play next failed');
         }
         if (body.playing) {
-            playMp3(body.playing.id, body.playing.fileName || `Track ${body.playing.id}`, 'Next track', { force: true });
+            playMp3(body.playing.id, { force: true }); // La fonction playMp3 va chercher ses propres métadonnées
             setStatus(`Playing next track ${body.playing.fileName || body.playing.id}`);
             getQueue();
         } else {
