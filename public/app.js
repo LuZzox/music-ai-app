@@ -231,7 +231,7 @@ function initVisualizer() {
         audioSource.connect(analyser);
         analyser.connect(audioCtx.destination);
 
-        analyser.fftSize = 64;
+        analyser.fftSize = 256;
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
         const ctx = canvas.getContext('2d');

@@ -1,10 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" transform="matrix(-1,1.2246467991473532e-16,-1.2246467991473532e-16,-1,0,0)">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1db954"></stop>
-      <stop offset="100%" stop-color="#1ae16d"></stop>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="95" ry="96" fill="url(#g)"></rect>
-  <path d="M128 160h44v192c0 40 70 40 70 0V160h44v192c0 40 70 40 70 0V160h26v192c0 75-143 75-195 0V160z" fill="#000" opacity="0.95"></path>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#1DB954"/>
+  <path d="M340 160V320C340 353.137 313.137 380 280 380C246.863 380 220 353.137 220 320C220 286.863 246.863 260 280 260C289.5 260 298.4 262.2 306.3 266.1V200H340V160Z" fill="white"/>
+  <path d="M180 140H200V340H180V140Z" fill="rgba(255,255,255,0.3)"/>
+  <path d="M140 180H160V300H140V180Z" fill="rgba(255,255,255,0.3)"/>
 </svg>

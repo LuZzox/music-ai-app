@@ -5,15 +5,12 @@
     "@capacitor/android": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "bcrypt": "^5.1.0",
-    "better-sqlite3": "^12.9.0",
     "connect-mongo": "^5.0.0",
-    "connect-sqlite3": "^0.9.16",
     "express": "^4.17.1",
     "express-session": "^1.17.3",
     "mongoose": "^7.0.0",
     "multer": "^1.4.5-lts.2",
-    "music-metadata": "^11.12.3",
-    "sqlite3": "^6.0.1"
+    "music-metadata": "^11.12.3"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
