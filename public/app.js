@@ -8,6 +8,10 @@ let currentLoopTrackIds = [];
 let currentLibraryPage = 1;
 const LIBRARY_PAGE_SIZE = 10;
 
+let audioCtx = null;
+let analyser = null;
+let audioSource = null;
+
 function setStatus(message) {
     document.getElementById('playerStatus').textContent = message;
 }
@@ -22,6 +26,16 @@ function updateNowPlaying(meta = {}) {
     currentTrackMeta = meta;
     document.getElementById('nowPlayingTitle').textContent = meta.title || 'No track selected';
     document.getElementById('nowPlayingSubtitle').textContent = meta.subtitle || 'Search shared music or play from your library.';
+    
+    // Sync with hardware media controls (headsets/lock screen)
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: meta.title || 'Musica',
+            artist: meta.subtitle || 'Musica AI',
+            artwork: meta.coverUrl ? [{ src: meta.coverUrl, sizes: '512x512', type: 'image/png' }] : []
+        });
+    }
+
     applyCoverToElement(document.getElementById('playerCover'), meta.title, meta.coverUrl);
     setStatus(meta.status || 'Ready to play');
 }
@@ -168,13 +182,20 @@ function updateSeekBar() {
 
 function setPlayButtonState(isPlaying) {
     const button = document.getElementById('playPauseBtn');
+    const cover = document.getElementById('playerCover');
     if (button) {
         button.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
+    }
+    if (cover) {
+        cover.classList.toggle('playing', isPlaying);
+    }
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
 }
 
 function showTab(name) {
-    const tabs = ['library', 'search', 'playlist', 'tracks'];
+    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue'];
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`);
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
@@ -192,12 +213,60 @@ function showTab(name) {
     if (name === 'playlist') {
         getPlaylists();
     }
+    if (name === 'queue') {
+        getQueue();
+    }
+}
+
+function initVisualizer() {
+    const player = document.getElementById('audioPlayer');
+    const canvas = document.getElementById('visualizerCanvas');
+    if (!player || !canvas || audioCtx) return;
+
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        analyser = audioCtx.createAnalyser();
+        audioSource = audioCtx.createMediaElementSource(player);
+        audioSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        analyser.fftSize = 64;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        const ctx = canvas.getContext('2d');
+
+        function draw() {
+            requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+
+            if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const barWidth = (canvas.width / bufferLength);
+            
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = (dataArray[i] / 255) * canvas.height * 0.8;
+                // Spotify green theme with dynamic opacity
+                ctx.fillStyle = `rgba(29, 185, 84, ${0.05 + (dataArray[i] / 255) * 0.4})`;
+                ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 2, barHeight);
+            }
+        }
+        draw();
+    } catch (e) { console.warn('Visualizer setup failed', e); }
 }
 
 function togglePlayPause() {
     const player = document.getElementById('audioPlayer');
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if (player.paused) {
-        player.play().then(() => setPlayButtonState(true)).catch(err => setStatus(`Playback failed: ${err.message}`));
+        player.play().then(() => {
+            initVisualizer();
+            setPlayButtonState(true);
+        }).catch(err => setStatus(`Playback failed: ${err.message}`));
     } else {
         player.pause();
         setPlayButtonState(false);
@@ -1270,6 +1339,19 @@ window.onload = () => {
     player.onloadedmetadata = updateSeekBar;
     player.onplay = () => setPlayButtonState(true);
     player.onpause = () => setPlayButtonState(false);
+    
+    // Initialize Hardware Media Keys (Headphones/Skip buttons)
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
+        navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
+        navigator.mediaSession.setActionHandler('previoustrack', () => playPrevFromQueue());
+        navigator.mediaSession.setActionHandler('nexttrack', () => playNextFromQueue());
+        // Support seeking if needed
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime) player.currentTime = details.seekTime;
+        });
+    }
+
     if (seekBar) {
         seekBar.oninput = (event) => {
             player.currentTime = Number(event.target.value);

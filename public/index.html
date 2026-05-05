@@ -8,6 +8,50 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <title>musica</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        @keyframes floating {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-10px) scale(1.02); }
+        }
+        .player-cover.playing {
+            animation: floating 4s ease-in-out infinite;
+            box-shadow: 0 15px 35px rgba(29, 185, 84, 0.4);
+            border: 2px solid #1db954;
+        }
+        .player-panel {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            min-height: 140px;
+        }
+        #visualizerCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+        .player-cover, .player-meta {
+            position: relative;
+            z-index: 1;
+        }
+        .player-meta {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 12px 18px;
+            border-radius: 10px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            margin-left: 15px;
+            flex: 1;
+        }
+    </style>
 </head>
 <body>
     <div class="app-shell">
@@ -62,6 +106,7 @@
                 <div class="card-row">
                     <div class="sidebar-group card player-card">
                         <div class="player-panel">
+                            <canvas id="visualizerCanvas"></canvas>
                             <div class="player-cover" id="playerCover">♫</div>
                             <div class="player-meta">
                                 <div class="player-badge">Now Playing</div>
@@ -84,16 +129,6 @@
                             <span id="playerStatus">Ready to play</span>
                             <button id="loopBtn" class="loop-button" onclick="toggleLoopMode()">🔁 Loop Off</button>
                         </div>
-                        <div class="sidebar-section">
-                            <div class="player-header">
-                                <span>Playback queue</span>
-                            </div>
-                            <div class="queue-controls">
-                                <button onclick="shuffleQueue()">🔀 Shuffle</button>
-                                <button class="secondary" onclick="stopPlayback()">⏹️ Stop</button>
-                            </div>
-                            <ul id="queueList" class="queue-list"></ul>
-                        </div>
                     </div>
                 </div>
 
@@ -102,6 +137,7 @@
                     <button class="tab-btn" id="tabSearchBtn" onclick="showTab('search')">🔎 Search</button>
                     <button class="tab-btn" id="tabPlaylistBtn" onclick="showTab('playlist')">📁 Playlists</button>
                     <button class="tab-btn" id="tabTracksBtn" onclick="showTab('tracks')">🎵 Tracks</button>
+                    <button class="tab-btn" id="tabQueueBtn" onclick="showTab('queue')">📋 Queue</button>
                 </div>
 
                 <div class="tab-content">
@@ -163,6 +199,24 @@
                                     </div>
                                 </div>
                                 <ul id="tracksResults" class="playlist"></ul>
+                            </section>
+                        </div>
+                    </section>
+
+                    <section id="queueTab" class="tab-panel">
+                        <div class="card-row">
+                            <section class="track-list card">
+                                <div class="section-header">
+                                    <div>
+                                        <h2>Playback Queue</h2>
+                                        <p>Manage and shuffle your upcoming tracks.</p>
+                                    </div>
+                                    <div class="queue-controls">
+                                        <button onclick="shuffleQueue()">🔀 Shuffle</button>
+                                        <button class="secondary" onclick="stopPlayback()">⏹️ Stop</button>
+                                    </div>
+                                </div>
+                                <ul id="queueList" class="playlist"></ul>
                             </section>
                         </div>
                     </section>
