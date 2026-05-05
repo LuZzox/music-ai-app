@@ -13,10 +13,18 @@ echo   (Using Render backend)
 echo ========================================
 echo.
 
-REM Step 0: Generate Assets (Icon/Splash) if assets folder exists
-if exist "assets\icon.png" (
-    echo [0/4] Generating Android assets...
-    call npx @capacitor/assets generate --android
+REM Step 0: Generate Assets (Icon/Splash)
+if exist "assets\icon.svg" (
+    set "ICON_SOURCE=assets\icon.svg"
+) else if exist "assets\icon.png" (
+    set "ICON_SOURCE=assets\icon.png"
+)
+
+if defined ICON_SOURCE (
+    echo [0/4] Generating Android assets from !ICON_SOURCE!...
+    call npx @capacitor/assets generate --android --icon !ICON_SOURCE!
+) else (
+    echo [0/4] No icon found in assets folder, skipping asset generation.
 )
 
 REM Step 1: Copy web assets

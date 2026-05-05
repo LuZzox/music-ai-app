@@ -126,7 +126,7 @@ async function getMp3FileById(id) {
 }
 
 async function getMp3FileMetadataById(id) {
-  return await Mp3File.findById(id).select('fileName uploaderName uploaderEmail userId createdAt');
+  return await Mp3File.findById(id).select('fileName uploaderName uploaderEmail userId createdAt coverMime');
 }
 
 async function deleteMp3File(userId, id) {
@@ -350,9 +350,22 @@ function ensureAuthenticated(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
   if (tokenMatch) {
-    const token = tokenMatch[1];
+    const token = tokenMatch[1] || req.query.token;
     const tokenData = validateToken(token);
     if (tokenData) {
+      req.session.userId = tokenData.userId;
+      req.session.userEmail = tokenData.email;
+      return next();
+    }
+  }
+
+  // Support token in query parameter for direct streaming (audio tags)
+  if (req.query.token) {
+    const tokenData = validateToken(req.query.token);
+    if (tokenData) {
+      // We don't necessarily want to create a full session for a streaming request,
+      // but we need to satisfy the userId check for the route.
+      if (!req.session) req.session = {}; 
       req.session.userId = tokenData.userId;
       req.session.userEmail = tokenData.email;
       return next();
@@ -381,7 +394,7 @@ function mapTrack(row, userId) {
   return {
     id: row._id,
     file_name: row.fileName,
-    coverUrl: row.coverData ? `/cover/${row._id}` : null,
+    coverUrl: (row.coverData || row.coverMime) ? `/cover/${row._id}` : null,
     uploaderEmail: row.uploaderEmail,
     uploaderName: row.uploaderName,
     owned: row.userId.toString() === userId.toString(),
@@ -662,11 +675,41 @@ app.get('/play/:id', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'MP3 file not found or missing audio data' });
     }
 
-    const audioBuffer = Buffer.isBuffer(row.fileData) ? row.fileData : Buffer.from(row.fileData);
+    // Convert Buffer to a readable stream for better memory management on low-tier VPS
+    const { Readable } = require('stream');
+    const stream = new Readable();
+    stream.push(row.fileData);
+    stream.push(null);
+
+    const audioBuffer = row.fileData; // Keeping reference for length
+    const totalLength = audioBuffer.length;
+    const range = req.headers.range;
+
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
-    res.setHeader('Content-Length', audioBuffer.length);
-    res.end(audioBuffer);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : totalLength - 1;
+      const chunksize = (end - start) + 1;
+      
+      if (start >= totalLength || end >= totalLength) {
+        res.status(416).send('Requested Range Not Satisfiable');
+        return;
+      }
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${totalLength}`,
+        'Content-Length': chunksize,
+      });
+      // Use stream for memory efficiency
+      Readable.from(audioBuffer.slice(start, end + 1)).pipe(res);
+    } else {
+      res.setHeader('Content-Length', totalLength);
+      Readable.from(audioBuffer).pipe(res);
+    }
   } catch (err) {
     console.error('/play error:', err);
     res.status(500).json({ error: err.message });
@@ -853,21 +896,33 @@ app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/play-next', ensureAuthenticated, (req, res) => {
+app.get('/play-next', ensureAuthenticated, async (req, res) => {
   const nextFile = queue.getNextMp3File(req.session.userId);
   if (nextFile) {
     player.playMp3File(nextFile);
-    res.json({ playing: nextFile });
+    const meta = await getMp3FileMetadataById(nextFile.id);
+    res.json({ 
+      playing: { 
+        ...nextFile, 
+        details: meta ? mapTrack(meta, req.session.userId) : null 
+      } 
+    });
   } else {
     res.json({ message: 'No files in queue' });
   }
 });
 
-app.get('/play-prev', ensureAuthenticated, (req, res) => {
+app.get('/play-prev', ensureAuthenticated, async (req, res) => {
   const prevFile = queue.getPreviousMp3File(req.session.userId);
   if (prevFile) {
     player.playMp3File(prevFile);
-    res.json({ playing: prevFile });
+    const meta = await getMp3FileMetadataById(prevFile.id);
+    res.json({ 
+      playing: { 
+        ...prevFile, 
+        details: meta ? mapTrack(meta, req.session.userId) : null 
+      } 
+    });
   } else {
     res.json({ message: 'No previous track' });
   }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Green Theme (Spotify-inspired) -->
+    <color name="colorPrimary">#1db954</color>
+    <color name="colorPrimaryDark">#1aa34a</color>
+    <color name="colorAccent">#1db954</color>
+    
+    <!-- Background Colors -->
+    <color name="background_dark">#080808</color>
+    <color name="background_card">#111111</color>
+    <color name="background_secondary">#0f1114</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#f4f4f4</color>
+    <color name="text_secondary">#b4b4b4</color>
+    <color name="text_hint">#9a9a9a</color>
+    
+    <!-- Status Colors -->
+    <color name="status_success">#1db954</color>
+    <color name="status_error">#ff4b4b</color>
+</resources>
