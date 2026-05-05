@@ -23,7 +23,7 @@
     "test": "mocha",
     "cap:copy": "npx cap copy",
     "cap:open:android": "npx cap open android",
-    "build:apk": "npm run cap:copy && npx cap sync android && cd android && gradlew.bat assembleDebug",
+    "build:apk": "npm run cap:copy && npx @capacitor/assets generate --icon-src public/icon.svg && npx cap sync android && cd android && gradlew.bat assembleDebug",
     "format": "prettier --write .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
