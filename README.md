@@ -1,6 +1,6 @@
 Music App Backend
 
-This is the backend of a music app built using Node.js with Express and SQLite.
+This is the backend of a music app built using Node.js with Express and MongoDB.
 The app allows users to upload MP3 files (stored directly in the database), manage a playback queue, and stream music.
 
 Features:
@@ -50,9 +50,9 @@ Database setup:
 Render deployment steps:
 1. Push your project to GitHub.
 2. Create a new Web Service on Render and connect your GitHub repo.
-3. Set the root directory to the repository root.
-4. Use `npm install` as the build command and `npm start` as the start command.
-5. After deploy, copy the public URL and enter it into the app's Backend URL field.
+3. Ensure `MONGODB_URI` and `SESSION_SECRET` environment variables are set on Render.
+4. Render will automatically detect `npm install` and `npm start` from `package.json`.
+5. After deployment, copy the public URL and enter it into the app's Backend URL field.
 
 Railway deployment steps:
 1. Create a new project on Railway and connect your GitHub repo.

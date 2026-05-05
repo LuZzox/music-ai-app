@@ -14,18 +14,15 @@ echo ========================================
 echo.
 
 REM Step 0: Generate Assets (Icon/Splash)
-if exist "assets\icon.svg" (
-    set "ICON_SOURCE=assets\icon.svg"
-) else if exist "assets\icon.png" (
-    set "ICON_SOURCE=assets\icon.png"
+REM Ensure the correct icon.svg is in the assets folder for Capacitor to pick up
+echo [0/4] Copying icon.svg to assets folder...
+copy /Y "public\icon.svg" "assets\icon.svg"
+if errorlevel 1 (
+    echo ERROR: Failed to copy icon.svg
+    goto error
 )
-
-if defined ICON_SOURCE (
-    echo [0/4] Generating Android assets from !ICON_SOURCE!...
-    call npx @capacitor/assets generate --android --icon !ICON_SOURCE!
-) else (
-    echo [0/4] No icon found in assets folder, skipping asset generation.
-)
+echo [0/4] Generating Android assets...
+call npx @capacitor/assets generate --android
 
 REM Step 1: Copy web assets
 echo [1/4] Copying web assets...

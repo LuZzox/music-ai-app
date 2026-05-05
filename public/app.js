@@ -1184,6 +1184,7 @@ async function queueTrack(id, options = {}) {
 }
 
 async function queueTracks(ids, options = {}) {
+    console.log('Client: queueTracks called with IDs:', ids);
     for (const id of ids) {
         await queueTrack(id, options);
     }
@@ -1282,7 +1283,7 @@ function stopPlayback() {
 
 async function handleTrackEnd() {
     console.log('Track ended, loopMode:', loopMode, 'currentLoopTrackIds:', currentLoopTrackIds, 'currentTrackId:', currentTrackId);
-    if (loopMode && currentLoopTrackIds.length > 0) {
+    if (loopMode && currentLoopTrackIds.length > 1) { // Only loop if it's a playlist (more than 1 track)
         const queueItems = await fetchQueueItems();
         console.log('Queue items:', queueItems.length);
         if (queueItems.length === 0) {
@@ -1295,14 +1296,10 @@ async function handleTrackEnd() {
                 updateLoopButton();
                 return;
             }
-            console.log('Re-queuing tracks for loop');
-            const tracksToQueue = currentLoopTrackIds.filter(id => id !== currentTrackId);
-            if (tracksToQueue.length === 0) {
-                // Last track in playlist, loop back to beginning
-                await queueTracks(currentLoopTrackIds, { silent: true });
-            } else {
-                await queueTracks(tracksToQueue, { silent: true });
-            }
+            console.log('Re-queuing entire playlist for loop:', currentLoopTrackIds);
+            await queueTracks(currentLoopTrackIds, { silent: true }); // Re-queue the entire playlist
+            // After re-queuing, playNextFromQueue will pick up the first track of the re-queued list
+            playNextFromQueue(); // Call playNextFromQueue to get the first track of the re-queued list
             setStatus('Looping playlist');
         }
     }

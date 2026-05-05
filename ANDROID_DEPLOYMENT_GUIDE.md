@@ -335,7 +335,7 @@ Requires:
   - Frontend: Web (HTML/CSS/JS)
   - Mobile Wrapper: Capacitor
   - Backend: Node.js + Express
-  - Database: SQLite
+  - Database: MongoDB
   - AI Integration: CrewAI + Ollama (optional)
 - **Status:** Ready for Testing
 
@@ -357,4 +357,3 @@ Requires:
 **Generated:** APK Build Completion  
 **Build System:** Capacitor 8.3.0 + Gradle + Android Studio  
 **Next Steps:** Install on device → Configure backend → Test functionality
-
