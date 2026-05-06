@@ -55,18 +55,45 @@
             margin-left: 15px;
             flex: 1;
         }
-        .user-nav {
+        .user-nav { 
             display: flex;
             align-items: center;
             gap: 12px;
         }
         .avatar-circle {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             object-fit: cover;
             background: #333;
+            cursor: context-menu;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
         }
+        .avatar-circle:hover { border-color: #1db954; }
+        
+        /* Context Menu and Modal Styles */
+        .context-menu {
+            display: none;
+            position: absolute;
+            background: #282828;
+            border: 1px solid #444;
+            border-radius: 8px;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            padding: 5px 0;
+            min-width: 120px;
+        }
+        .context-menu button {
+            background: none; border: none; color: white; padding: 10px 15px;
+            text-align: left; width: 100%; cursor: pointer; font-size: 14px;
+        }
+        .context-menu button:hover { background: #333; color: #1db954; }
+        
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: #181818; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; border: 1px solid #333; position: relative; }
+        .close-modal { position: absolute; top: 15px; right: 15px; background: none; border: none; color: #999; font-size: 20px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -158,7 +185,6 @@
                     <button class="tab-btn" id="tabPlaylistBtn" onclick="showTab('playlist')">📁 Playlists</button>
                     <button class="tab-btn" id="tabTracksBtn" onclick="showTab('tracks')">🎵 Tracks</button>
                     <button class="tab-btn" id="tabQueueBtn" onclick="showTab('queue')">📋 Queue</button>
-                    <button class="tab-btn" id="tabSettingsBtn" onclick="showTab('settings')">⚙️ Settings</button>
                 </div>
 
                 <div class="tab-content">
@@ -270,27 +296,31 @@
                             </section>
                         </div>
                     </section>
-
-                    <section id="settingsTab" class="tab-panel">
-                        <div class="card-row">
-                            <div class="sidebar-group card">
-                                <div class="sidebar-section">
-                                    <h2>Account Settings</h2>
-                                    <div class="auth-form">
-                                        <label>Display Name</label>
-                                        <input type="text" id="settingsDisplayName" placeholder="Update name">
-                                        <label>Profile Picture</label>
-                                        <input type="file" id="settingsAvatar" accept="image/*">
-                                        <button onclick="updateProfile()">Save Changes</button>
-                                    </div>
-                                    <p class="hint" id="settingsStatus"></p>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
                 </div>
             </div>
         </main>
+
+        <!-- Context Menu -->
+        <div id="avatarContextMenu" class="context-menu">
+            <button onclick="openSettings()">⚙️ Settings</button>
+            <button onclick="handleLogout()" style="color: #ff6b6b;">🚪 Log Out</button>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal">
+            <div class="modal-content card">
+                <button class="close-modal" onclick="closeSettings()">&times;</button>
+                <h2>Account Settings</h2>
+                <div class="auth-form" style="margin-top: 15px;">
+                    <label>Display Name</label>
+                    <input type="text" id="settingsDisplayName" placeholder="Update name">
+                    <label>Profile Picture</label>
+                    <input type="file" id="settingsAvatar" accept="image/*">
+                    <button onclick="updateProfile()" style="margin-top: 10px;">Save Changes</button>
+                </div>
+                <p class="hint" id="settingsStatus" style="margin-top: 10px;"></p>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

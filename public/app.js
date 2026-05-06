@@ -195,7 +195,7 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
-    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue', 'settings'];
+    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue'];
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`); // Ensure 'settings' tab is included
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
@@ -499,7 +499,9 @@ function showApp() {
     document.getElementById('mainContent').style.display = 'block';
     if (currentUser) {
         document.getElementById('headerUserName').textContent = currentUser.displayName || currentUser.email;
-        document.getElementById('headerAvatar').src = resolveApiUrl('/user/avatar') + '?t=' + Date.now();
+        const token = getAuthToken();
+        const avatarUrl = resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '');
+        document.getElementById('headerAvatar').src = avatarUrl;
         document.getElementById('headerAvatar').style.display = 'block';
     }
 }
@@ -1374,7 +1376,28 @@ window.onload = () => {
             updateSeekBar();
         };
     }
+
+    // Setup Context Menu for Avatar
+    const avatar = document.getElementById('headerAvatar');
+    const menu = document.getElementById('avatarContextMenu');
+    if (avatar) {
+        avatar.oncontextmenu = (e) => {
+            e.preventDefault();
+            menu.style.display = 'block';
+            menu.style.left = `${e.pageX}px`;
+            menu.style.top = `${e.pageY}px`;
+        };
+    }
+    window.onclick = () => { if(menu) menu.style.display = 'none'; };
+
     updateLoopButton();
     showTab('library');
     checkAuth();
 };
+
+function openSettings() {
+    document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings() {
+    document.getElementById('settingsModal').classList.remove('active');
+}
