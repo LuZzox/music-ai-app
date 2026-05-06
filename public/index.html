@@ -55,6 +55,18 @@
             margin-left: 15px;
             flex: 1;
         }
+        .user-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .avatar-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #333;
+        }
     </style>
 </head>
 <body>
@@ -92,7 +104,11 @@
                     <h1>musica</h1>
                     <p>Upload, browse, and play your tracks.</p>
                 </div>
-                <button id="logoutBtn" class="logout-button" onclick="handleLogout()">Log Out</button>
+                <div class="user-nav">
+                    <img id="headerAvatar" class="avatar-circle" style="display:none;" />
+                    <span id="headerUserName"></span>
+                    <button id="logoutBtn" class="logout-button" onclick="handleLogout()">Log Out</button>
+                </div>
             </div>
 
             <div class="hero card">
@@ -142,6 +158,7 @@
                     <button class="tab-btn" id="tabPlaylistBtn" onclick="showTab('playlist')">📁 Playlists</button>
                     <button class="tab-btn" id="tabTracksBtn" onclick="showTab('tracks')">🎵 Tracks</button>
                     <button class="tab-btn" id="tabQueueBtn" onclick="showTab('queue')">📋 Queue</button>
+                    <button class="tab-btn" id="tabSettingsBtn" onclick="showTab('settings')">⚙️ Settings</button>
                 </div>
 
                 <div class="tab-content">
@@ -251,6 +268,24 @@
                                 </div>
                                 <ul id="playlistTrackList" class="playlist"></ul>
                             </section>
+                        </div>
+                    </section>
+
+                    <section id="settingsTab" class="tab-panel">
+                        <div class="card-row">
+                            <div class="sidebar-group card">
+                                <div class="sidebar-section">
+                                    <h2>Account Settings</h2>
+                                    <div class="auth-form">
+                                        <label>Display Name</label>
+                                        <input type="text" id="settingsDisplayName" placeholder="Update name">
+                                        <label>Profile Picture</label>
+                                        <input type="file" id="settingsAvatar" accept="image/*">
+                                        <button onclick="updateProfile()">Save Changes</button>
+                                    </div>
+                                    <p class="hint" id="settingsStatus"></p>
+                                </div>
+                            </div>
                         </div>
                     </section>
                 </div>

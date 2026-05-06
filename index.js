@@ -77,6 +77,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   displayName: String,
+  profilePicture: Buffer,
+  profilePictureMime: String,
   createdAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', userSchema);
@@ -501,6 +503,32 @@ app.post('/logout', (req, res) => {
     }
     res.json({ success: true });
   });
+});
+
+app.post('/user/profile', ensureAuthenticated, upload.single('avatar'), async (req, res) => {
+  const { displayName } = req.body;
+  const updateData = {};
+  if (displayName) updateData.displayName = displayName;
+  if (req.file) {
+    const fileData = await fs.readFile(req.file.path);
+    updateData.profilePicture = fileData;
+    updateData.profilePictureMime = req.file.mimetype;
+    await fs.unlink(req.file.path);
+  }
+  try {
+    const user = await User.findByIdAndUpdate(req.session.userId, updateData, { new: true });
+    req.session.displayName = user.displayName;
+    res.json({ success: true, user: { id: user._id, email: user.email, displayName: user.displayName } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/user/avatar', ensureAuthenticated, async (req, res) => {
+  const user = await User.findById(req.session.userId).select('profilePicture profilePictureMime');
+  if (!user || !user.profilePicture) return res.status(404).send();
+  res.set('Content-Type', user.profilePictureMime);
+  res.send(user.profilePicture);
 });
 
 app.get('/auth/user', (req, res) => {

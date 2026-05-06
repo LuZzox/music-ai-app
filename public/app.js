@@ -32,7 +32,7 @@ function updateNowPlaying(meta = {}) {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: meta.title || 'Musica',
             artist: meta.subtitle || 'Musica AI',
-            artwork: meta.coverUrl ? [{ src: meta.coverUrl, sizes: '512x512', type: 'image/png' }] : []
+            artwork: [{ src: meta.coverUrl || '/icon.png', sizes: '512x512', type: 'image/png' }]
         });
     }
 
@@ -41,7 +41,7 @@ function updateNowPlaying(meta = {}) {
 }
 
 function getCoverLetter(title) {
-    if (!title) return '♫';
+    if (!title) return 'M';
     return title.trim().charAt(0).toUpperCase();
 }
 
@@ -195,9 +195,9 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
-    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue'];
+    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue', 'settings'];
     tabs.forEach(tab => {
-        const panel = document.getElementById(`${tab}Tab`);
+        const panel = document.getElementById(`${tab}Tab`); // Ensure 'settings' tab is included
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
         if (panel) panel.classList.toggle('active', tab === name);
         if (button) button.classList.toggle('active', tab === name);
@@ -261,12 +261,17 @@ function initVisualizer() {
 
 function togglePlayPause() {
     const player = document.getElementById('audioPlayer');
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    // Ensure AudioContext is resumed before playing
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(err => console.error('Failed to resume AudioContext:', err));
+    }
     if (player.paused) {
         player.play().then(() => {
-            initVisualizer();
             setPlayButtonState(true);
-        }).catch(err => setStatus(`Playback failed: ${err.message}`));
+        }).catch(err => {
+            console.error('Error during player.play() in togglePlayPause:', err); // More specific error logging
+            setStatus(`Playback failed: ${err.message}`);
+        });
     } else {
         player.pause();
         setPlayButtonState(false);
@@ -492,6 +497,11 @@ function showAuth() {
 function showApp() {
     document.getElementById('authPanel').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
+    if (currentUser) {
+        document.getElementById('headerUserName').textContent = currentUser.displayName || currentUser.email;
+        document.getElementById('headerAvatar').src = resolveApiUrl('/user/avatar') + '?t=' + Date.now();
+        document.getElementById('headerAvatar').style.display = 'block';
+    }
 }
 
 function checkAuth() {
@@ -1103,12 +1113,18 @@ async function playMp3(id, options = {}) {
     try {
         await loadAudioSource(resolveApiUrl(`/play/${id}`));
         player.load();
+        // Attempt to resume AudioContext before playing
+        if (audioCtx && audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
         player.play().then(() => setPlayButtonState(true)).catch(error => {
-            setStatus(`Erreur de lecture : ${error.message}`); // Cela pourrait être un problème de geste de l'utilisateur
+            console.error('Error during player.play() in playMp3:', error); // More specific error logging
+            setStatus(`Erreur de lecture : ${error.message}`);
             setPlayButtonState(false);
         });
         updateNowPlaying({ title: actualTitle, subtitle: actualSubtitle, status: `Lecture de ${actualTitle}` });
     } catch (error) {
+        console.error('Error in playMp3 function:', error); // More specific error logging
         setStatus(`Playback error: ${error.message}`);
         setPlayButtonState(false);
     }
@@ -1352,7 +1368,8 @@ window.onload = () => {
             if (details.seekTime) player.currentTime = details.seekTime;
         });
     }
-
+    
+    initVisualizer(); // Initialize AudioContext early
     if (seekBar) {
         seekBar.oninput = (event) => {
             player.currentTime = Number(event.target.value);
