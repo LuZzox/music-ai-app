@@ -14,13 +14,8 @@ echo ========================================
 echo.
 
 REM Step 0: Generate Assets (Icon/Splash)
-REM Ensure the correct icon.svg is in the assets folder for Capacitor to pick up
-echo [0/4] Copying icon.svg to assets folder...
-copy /Y "public\icon.svg" "assets\icon.svg"
-if errorlevel 1 (
-    echo ERROR: Failed to copy icon.svg
-    goto error
-)
+echo [0/4] Cleaning old assets...
+if exist "assets\icon.svg" del /Q "assets\icon.svg"
 echo [0/4] Generating Android assets...
 call npx @capacitor/assets generate --android
 

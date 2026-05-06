@@ -1185,8 +1185,12 @@ async function queueTrack(id, options = {}) {
 
 async function queueTracks(ids, options = {}) {
     console.log('Client: queueTracks called with IDs:', ids);
-    for (const id of ids) {
-        await queueTrack(id, options);
+    // Utilisation de Promise.all pour envoyer toutes les requêtes en parallèle.
+    // C'est beaucoup plus fiable pour les opérations groupées sur Render.
+    try {
+        await Promise.all(ids.map(id => queueTrack(id, options)));
+    } catch (err) {
+        console.error('Erreur lors de la mise en file d\'attente groupée:', err);
     }
     await getQueue();
 }

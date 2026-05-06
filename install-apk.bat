@@ -93,7 +93,7 @@ if /i "!choice!"=="Y" (
         echo Installation successful!
         echo ========================================
         echo.
-        echo The Musicify app is now installed on your device.
+        echo The musica app is now installed on your device.
         echo.
         echo To launch the app:
         echo 1. Unlock your device

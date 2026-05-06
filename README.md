@@ -61,8 +61,7 @@ Railway deployment steps:
 
 Important:
 - MP3 files are stored directly in the SQLite database as BLOBs, avoiding file system issues.
-- The Android wrapper will load the front-end UI from the app bundle.
-- The backend must be deployed on a reachable server and the backend URL configured in the app.
+- The Android wrapper will load the front-end UI from the app bundle.URL configured in the app.
 - With a remote backend, your phone app works even when your computer is off.
 - The backend must be deployed on a server and the backend URL configured in the app.
 

@@ -14,7 +14,7 @@ C:\Users\sharl\Desktop\music-ai-app\android\app\build\outputs\apk\debug\app-debu
 **File Information:**
 - **Filename:** `app-debug.apk`
 - **Application ID:** `com.musicify.app`
-- **App Name:** Musicify
+- **App Name:** musica
 - **Variant:** Debug
 - **Version Code:** 1
 - **Version Name:** 1.0
@@ -24,8 +24,8 @@ C:\Users\sharl\Desktop\music-ai-app\android\app\build\outputs\apk\debug\app-debu
 ## Project Configuration
 
 ### Capacitor Configuration (capacitor.config.json)
-- **App ID:** com.musicify.app
-- **App Name:** Musicify
+- **App ID:** com.musica.app
+- **App Name:** musica
 - **Web Directory:** public
 - **Bundled Web Runtime:** Disabled
 
@@ -63,7 +63,7 @@ C:\Users\sharl\Desktop\music-ai-app\android\app\build\outputs\apk\debug\app-debu
    The `-r` flag replaces the app if it's already installed.
 
 3. **Launch the app:**
-   - Look for "Musicify" in your app drawer
+   - Look for "musica" in your app drawer
    - Tap to launch
 
 ### Option 2: Manual Installation

@@ -176,7 +176,7 @@ const sessionConfig = {
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGODB_URI }),
   cookie: {
-    maxAge: 12 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // Persistent for 30 days
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
@@ -324,7 +324,7 @@ function storeToken(userId, email) {
   cleanupExpiredTokens(); // Cleanup before storing new token
   
   const token = generateToken();
-  const expiry = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+  const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // Persistent for 30 days
   tokenStore.set(token, { userId, email, expiry });
   
   return token;

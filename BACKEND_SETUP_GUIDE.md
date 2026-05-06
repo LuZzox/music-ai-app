@@ -29,7 +29,7 @@ Server started on port 3000
 ### Step 2: Configure Backend URL in App
 
 On your Android phone:
-1. Open **musica** app
+1. Open **musica** app 
 2. Go to **Library** tab (top navigation)
 3. Scroll down to "Backend URL" section
 4. Enter your PC's IP address with port 3000:

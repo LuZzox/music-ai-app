@@ -16,7 +16,7 @@ C:\Users\sharl\Desktop\music-ai-app\android\app\build\outputs\apk\debug\app-debu
 **File Details:**
 - **Filename:** `app-debug.apk`
 - **Application ID:** `com.musicify.app`
-- **Version:** 1.0 (Build 1)
+- **App Name:** musica
 - **Build Type:** Debug (development/testing)
 - **Minimum Android Version:** 7.0 (API 24)
 - **Target Android Version:** 15 (API 36)
@@ -128,8 +128,8 @@ Some devices allow directly dragging APK files onto the device in Windows File E
 
 ### Launch the App:
 1. Unlock your Android device
-2. Go to **App Drawer** or **All Apps**
-3. Find and tap **"Musicify"** (the app name)
+2. Go to **App Drawer** or **All Apps** (or search for "musica")
+3. Find and tap **"musica"** (the app name)
 4. The app will start with the web frontend
 
 ### First Launch:
@@ -331,7 +331,7 @@ Requires:
 
 - **Project Name:** Music AI App (Musicify)
 - **App ID:** com.musicify.app
-- **Technology Stack:** 
+- **Technology Stack:**
   - Frontend: Web (HTML/CSS/JS)
   - Mobile Wrapper: Capacitor
   - Backend: Node.js + Express
