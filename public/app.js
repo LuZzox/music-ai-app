@@ -505,6 +505,7 @@ function showApp() {
 }
 
 function checkAuth() {
+    loadBackendUrl(); // Load stored API_BASE before making any network requests
     fetchApi(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
@@ -513,7 +514,6 @@ function checkAuth() {
             if (cachedUser) {
                 currentUser = cachedUser;
                 offlineMode = true;
-                loadBackendUrl();
                 showApp();
                 getMp3Files();
                 getQueue();
@@ -527,7 +527,6 @@ function checkAuth() {
         currentUser = body.user;
         offlineMode = false;
         saveOfflineUser(body.user);
-        loadBackendUrl();
         showApp();
         getMp3Files();
         getQueue();
@@ -539,7 +538,6 @@ function checkAuth() {
         if (cachedUser) {
             currentUser = cachedUser;
             offlineMode = true;
-            loadBackendUrl();
             showApp();
             getMp3Files();
             getQueue();
