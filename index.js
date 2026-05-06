@@ -11,12 +11,6 @@ const mm = require('music-metadata');
 const app = express();
 
 // Memory management: Force garbage collection if available
-if (global.gc) {
-  setInterval(() => {
-    global.gc();
-  }, 30000); // Run GC every 30 seconds
-}
-
 // Configure multer for disk storage to avoid memory issues
 const uploadDir = path.join(__dirname, 'uploads');
 const storage = multer.diskStorage({
@@ -36,11 +30,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Memory management - force GC if available (only in development)
-if (global.gc && process.env.NODE_ENV === 'development') {
+if (global.gc) {
   setInterval(() => {
     global.gc();
-    console.log('Forced garbage collection');
-  }, 30 * 60 * 1000); // Every 30 minutes
+    if (process.env.NODE_ENV === 'development') console.log('Forced garbage collection');
+  }, 60000); // Run GC every minute
 }
 
 // Cleanup old temporary files periodically
@@ -67,7 +61,7 @@ async function cleanupTempFiles() {
 setInterval(cleanupTempFiles, 60 * 60 * 1000);
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI; // On force l'usage de la variable d'env
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/musica';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✓ Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
@@ -746,19 +740,14 @@ app.get('/play/:id', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'MP3 file not found or missing audio data' });
     }
 
-    // Convert Buffer to a readable stream for better memory management on low-tier VPS
-    const { Readable } = require('stream');
-    const stream = new Readable();
-    stream.push(row.fileData);
-    stream.push(null);
-
-    const audioBuffer = row.fileData; // Keeping reference for length
-    const totalLength = audioBuffer.length;
+    const totalLength = row.fileData.length;
     const range = req.headers.range;
 
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
     res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -771,15 +760,13 @@ app.get('/play/:id', ensureAuthenticated, async (req, res) => {
         return;
       }
 
-      res.writeHead(206, {
+      res.status(206).set({
         'Content-Range': `bytes ${start}-${end}/${totalLength}`,
-        'Content-Length': chunksize,
-      });
-      // Use stream for memory efficiency
-      Readable.from(audioBuffer.slice(start, end + 1)).pipe(res);
+        'Content-Length': chunksize
+      }).send(row.fileData.slice(start, end + 1));
     } else {
       res.setHeader('Content-Length', totalLength);
-      Readable.from(audioBuffer).pipe(res);
+      res.send(row.fileData);
     }
   } catch (err) {
     console.error('/play error:', err);

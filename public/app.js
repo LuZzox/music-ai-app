@@ -195,7 +195,7 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
-    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue']; // Removed 'settings'
+    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue'];
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`); // Ensure 'settings' tab is included
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
@@ -320,6 +320,8 @@ async function loadAudioSource(url) {
     // This allows the browser to buffer and start playing almost immediately.
     const token = getAuthToken();
     const authenticatedUrl = token ? `${url}${url.includes('?') ? '&' : '?'}token=${token}` : url;
+    player.pause();
+    player.removeAttribute('src'); // Force clean state
     player.src = authenticatedUrl;
 }
 
@@ -511,16 +513,18 @@ function showApp() {
     document.getElementById('authPanel').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
     
-    const avatarBox = document.getElementById('headerAvatar');
+    const avatarImg = document.getElementById('headerAvatar');
     const nameSpan = document.getElementById('headerUserName');
 
-    if (currentUser && nameSpan && avatarBox) {
-        const name = currentUser.displayName || currentUser.email;
-        nameSpan.textContent = name;
+    if (currentUser && nameSpan && avatarImg) {
+        nameSpan.textContent = currentUser.displayName || currentUser.email;
         const token = getAuthToken();
-        const avatarUrl = currentUser.hasPicture ? resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '') : null;
-        applyCoverToElement(avatarBox, name, avatarUrl);
-        avatarBox.style.display = 'grid';
+        const avatarUrl = resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '');
+        
+        avatarImg.src = avatarUrl;
+        avatarImg.style.display = 'block';
+        // Hide if no image found (404)
+        avatarImg.onerror = () => { avatarImg.style.display = 'none'; };
     }
 }
 
@@ -1422,13 +1426,6 @@ window.onload = () => {
     showTab('library');
     checkAuth();
 };
-
-function openSettings() {
-    document.getElementById('settingsModal').classList.add('active');
-}
-function closeSettings() {
-    document.getElementById('settingsModal').classList.remove('active');
-}
 
 function openSettings() {
     document.getElementById('settingsModal').classList.add('active');
