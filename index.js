@@ -105,6 +105,27 @@ const playlistSchema = new mongoose.Schema({
 });
 const Playlist = mongoose.model('Playlist', playlistSchema);
 
+// New Mongoose Schemas for persistent tokens and queue
+const authTokenSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  email: { type: String, required: true }, // Added email for token data
+  token: { type: String, required: true, unique: true },
+  expiry: { type: Date, required: true }
+});
+const AuthToken = mongoose.model('AuthToken', authTokenSchema);
+
+const userQueueItemSchema = new mongoose.Schema({
+  id: { type: mongoose.Schema.Types.ObjectId, required: true },
+  fileName: { type: String, required: true }
+}, { _id: false }); // Don't create an _id for subdocuments
+
+const userQueueSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  queueItems: [userQueueItemSchema],
+  historyItems: [userQueueItemSchema] // For play-prev
+});
+const UserQueue = mongoose.model('UserQueue', userQueueSchema);
+
 // Helper functions converted to Async Mongoose calls
 async function getUserByEmail(email) {
   return await User.findOne({ email: email.toLowerCase() });
@@ -215,61 +236,76 @@ class Mp3FileItem {
 }
 
 class Queue {
-  constructor() {
-    this.userQueues = new Map();
-    this.playHistory = new Map();
-  }
-
-  addMp3File(userId, mp3File) {
-    const key = userId.toString();
-    const queue = this.userQueues.get(key) || [];
-    queue.push(mp3File);
-    this.userQueues.set(key, queue);
-    return queue;
-  }
-
-  getNextMp3File(userId) {
-    const key = userId.toString();
-    const queue = this.userQueues.get(key) || [];
-    const next = queue.length > 0 ? queue.shift() : null;
-    if (next) {
-      const history = this.playHistory.get(key) || [];
-      history.push(next);
-      this.playHistory.set(key, history);
+  async getOrCreateUserQueue(userId) {
+    let userQueue = await UserQueue.findOne({ userId });
+    if (!userQueue) {
+      userQueue = new UserQueue({ userId, queueItems: [], historyItems: [] });
+      await userQueue.save();
     }
-    this.userQueues.set(key, queue);
+    return userQueue;
+  }
+
+  async addMp3File(userId, mp3File) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    userQueue.queueItems.push(mp3File);
+    await userQueue.save();
+    return userQueue.queueItems;
+  }
+
+  async getNextMp3File(userId) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    const next = userQueue.queueItems.shift(); // Remove from front of queue
+    if (next) {
+      userQueue.historyItems.push(next); // Add to history
+      // Limit history size to prevent it from growing indefinitely
+      if (userQueue.historyItems.length > 50) { // Keep last 50 tracks in history
+        userQueue.historyItems.shift();
+      }
+    }
+    await userQueue.save();
     return next;
   }
 
-  getPreviousMp3File(userId) {
-    const key = userId.toString();
-    const history = this.playHistory.get(key) || [];
-    if (history.length === 0) {
-      return null;
+  async getPreviousMp3File(userId) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    const previous = userQueue.historyItems.pop(); // Remove from end of history
+    if (previous) {
+      userQueue.queueItems.unshift(previous); // Add back to front of queue
     }
-    const previous = history.pop();
+    await userQueue.save();
     return previous;
   }
 
-  getQueue(userId) {
-    return this.userQueues.get(userId.toString()) || [];
+  async getQueue(userId) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    return userQueue.queueItems;
   }
 
-  shuffleQueue(userId) {
-    const key = userId.toString();
-    const queue = this.userQueues.get(key) || [];
+  async shuffleQueue(userId) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    const queue = userQueue.queueItems;
+    if (queue.length === 0) {
+      return null;
+    }
     for (let i = queue.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [queue[i], queue[j]] = [queue[j], queue[i]];
     }
-    this.userQueues.set(key, queue);
+    await userQueue.save();
     return queue;
   }
 
-  removeMp3File(userId, id) {
-    const key = userId.toString();
-    const queue = this.userQueues.get(key) || [];
-    this.userQueues.set(key, queue.filter(item => item.id.toString() !== id.toString()));
+  async removeMp3File(userId, id) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    userQueue.queueItems = userQueue.queueItems.filter(item => item.id.toString() !== id.toString());
+    userQueue.historyItems = userQueue.historyItems.filter(item => item.id.toString() !== id.toString()); // Also remove from history
+    await userQueue.save();
+  }
+
+  async setQueue(userId, newQueueItems) {
+    const userQueue = await this.getOrCreateUserQueue(userId);
+    userQueue.queueItems = newQueueItems;
+    await userQueue.save();
   }
 }
 
@@ -297,52 +333,48 @@ const queue = new Queue();
 const player = new Player();
 
 // In-memory token store as fallback auth mechanism
-const tokenStore = new Map();
-let lastCleanup = Date.now();
+// const tokenStore = new Map(); // REMOVED: Replaced by AuthToken Mongoose model
+// let lastCleanup = Date.now(); // REMOVED: Cleanup handled by Mongoose
 
 function generateToken() {
   return crypto.randomBytes(16).toString('hex'); // Reduced from 32 to 16 bytes
 }
 
-function cleanupExpiredTokens() {
-  const now = Date.now();
-  // Only cleanup every 5 minutes to reduce CPU usage
-  if (now - lastCleanup < 5 * 60 * 1000) return;
-  
-  lastCleanup = now;
-  let cleaned = 0;
-  for (const [token, data] of tokenStore.entries()) {
-    if (data.expiry < now) {
-      tokenStore.delete(token);
-      cleaned++;
-    }
-  }
-  if (cleaned > 0) {
-    console.log(`Cleaned up ${cleaned} expired tokens`);
-  }
+async function cleanupExpiredTokens() {
+  const now = new Date();
+  await AuthToken.deleteMany({ expiry: { $lt: now } });
+  // console.log(`Cleaned up expired tokens from DB`); // Optional logging
 }
 
-function storeToken(userId, email) {
-  cleanupExpiredTokens(); // Cleanup before storing new token
+async function storeToken(userId, email) {
+  await cleanupExpiredTokens(); // Cleanup before storing new token
   
   const token = generateToken();
-  const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // Persistent for 30 days
-  tokenStore.set(token, { userId, email, expiry });
+  const expiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // Persistent for 30 days
+  const authToken = new AuthToken({ userId, email, token, expiry });
+  await authToken.save();
   
   return token;
 }
 
-function validateToken(token) {
-  const data = tokenStore.get(token);
-  if (!data) return null;
-  if (data.expiry < Date.now()) {
-    tokenStore.delete(token);
+async function validateToken(token) {
+  const authToken = await AuthToken.findOne({ token });
+  if (!authToken) return null;
+  if (authToken.expiry < new Date()) {
+    await AuthToken.deleteOne({ _id: authToken._id });
     return null;
   }
-  return data;
+  // Update expiry on use to extend session
+  authToken.expiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000));
+  await authToken.save();
+  return { userId: authToken.userId, email: authToken.email };
 }
 
-function ensureAuthenticated(req, res, next) {
+async function clearToken(token) {
+  await AuthToken.deleteOne({ token });
+}
+
+async function ensureAuthenticated(req, res, next) { // Made async
   // Check session first
   if (req.session && req.session.userId) {
     return next();
@@ -350,27 +382,28 @@ function ensureAuthenticated(req, res, next) {
   
   // Fall back to token auth (Authorization header)
   const authHeader = req.headers.authorization || '';
+  let token = null;
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
   if (tokenMatch) {
-    const token = tokenMatch[1] || req.query.token;
-    const tokenData = validateToken(token);
-    if (tokenData) {
-      req.session.userId = tokenData.userId;
-      req.session.userEmail = tokenData.email;
-      return next();
-    }
+    token = tokenMatch[1];
+  } else if (req.query.token) { // Support token in query parameter for direct streaming (audio tags)
+    token = req.query.token;
   }
 
-  // Support token in query parameter for direct streaming (audio tags)
-  if (req.query.token) {
-    const tokenData = validateToken(req.query.token);
+  if (token) {
+    const tokenData = await validateToken(token); // AWAIT here
     if (tokenData) {
-      // We don't necessarily want to create a full session for a streaming request,
-      // but we need to satisfy the userId check for the route.
-      if (!req.session) req.session = {}; 
       req.session.userId = tokenData.userId;
       req.session.userEmail = tokenData.email;
-      return next();
+      // Optionally, fetch displayName if needed for session
+      const user = await User.findById(tokenData.userId).select('displayName');
+      if (user) req.session.displayName = user.displayName;
+
+      // Save session to ensure it's persisted for future requests
+      return req.session.save(err => {
+        if (err) console.error('Error saving session after token auth:', err);
+        next();
+      });
     }
   }
   
@@ -423,7 +456,7 @@ app.post('/signup', async (req, res) => {
     req.session.displayName = newUser.displayName;
     console.log('[SIGNUP] Session set for user:', email, 'SessionID:', req.sessionID);
 
-    const token = storeToken(userId, newUser.email);
+    const token = await storeToken(userId, newUser.email); // AWAIT here
 
     req.session.save((err) => {
       if (err) {
@@ -469,7 +502,7 @@ app.post('/login', async (req, res) => {
     req.session.displayName = user.displayName;
     console.log('[LOGIN] Session set for user:', user.email, 'SessionID:', req.sessionID);
 
-    const token = storeToken(user.id, user.email);
+    const token = await storeToken(user.id, user.email); // AWAIT here
 
     req.session.save((err) => {
       if (err) {
@@ -497,15 +530,19 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/logout', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.query.token;
   req.session.destroy(err => {
     if (err) {
       return res.status(500).json({ error: err.message });
+    }
+    if (token) { // If a token was used, clear it from DB
+      clearToken(token).catch(console.error);
     }
     res.json({ success: true });
   });
 });
 
-app.post('/user/profile', ensureAuthenticated, upload.single('avatar'), async (req, res) => {
+app.post('/user/profile', ensureAuthenticated, upload.single('avatar'), async (req, res) => { // Made async
   const { displayName } = req.body;
   const updateData = {};
   if (displayName) updateData.displayName = displayName;
@@ -524,17 +561,18 @@ app.post('/user/profile', ensureAuthenticated, upload.single('avatar'), async (r
   }
 });
 
-app.get('/user/avatar', ensureAuthenticated, async (req, res) => {
+app.get('/user/avatar', ensureAuthenticated, async (req, res) => { // Made async
   const user = await User.findById(req.session.userId).select('profilePicture profilePictureMime');
   if (!user || !user.profilePicture) return res.status(404).send();
   res.set('Content-Type', user.profilePictureMime);
   res.send(user.profilePicture);
 });
 
-app.get('/auth/user', (req, res) => {
+app.get('/auth/user', async (req, res) => { // Made async
   // Check session first
   if (req.session && req.session.userId) {
-    return res.json({ authenticated: true, user: { id: req.session.userId, email: req.session.userEmail } });
+    const user = await User.findById(req.session.userId).select('displayName email');
+    return res.json({ authenticated: true, user: { id: req.session.userId, email: user.email, displayName: user.displayName } });
   }
   
   // Check token as fallback
@@ -542,10 +580,11 @@ app.get('/auth/user', (req, res) => {
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/);
   if (tokenMatch) {
     const token = tokenMatch[1];
-    const tokenData = validateToken(token);
+    const tokenData = await validateToken(token); // AWAIT here
     if (tokenData) {
       console.log('[AUTH/USER] ✓ Token authenticated:', tokenData.email);
-      return res.json({ authenticated: true, user: { id: tokenData.userId, email: tokenData.email } });
+      const user = await User.findById(tokenData.userId).select('displayName email');
+      return res.json({ authenticated: true, user: { id: tokenData.userId, email: user.email, displayName: user.displayName } });
     }
   }
   
@@ -917,7 +956,7 @@ app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
     }
 
     const mp3File = new Mp3FileItem(row.id, row.fileName);
-    queue.addMp3File(req.session.userId, mp3File);
+    await queue.addMp3File(req.session.userId, mp3File); // AWAIT here
     res.json({ message: 'Added to queue', file: mp3File });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -925,7 +964,7 @@ app.post('/queue/:id', ensureAuthenticated, async (req, res) => {
 });
 
 app.get('/play-next', ensureAuthenticated, async (req, res) => {
-  const nextFile = queue.getNextMp3File(req.session.userId);
+  const nextFile = await queue.getNextMp3File(req.session.userId); // AWAIT here
   if (nextFile) {
     player.playMp3File(nextFile);
     const meta = await getMp3FileMetadataById(nextFile.id);
@@ -941,7 +980,7 @@ app.get('/play-next', ensureAuthenticated, async (req, res) => {
 });
 
 app.get('/play-prev', ensureAuthenticated, async (req, res) => {
-  const prevFile = queue.getPreviousMp3File(req.session.userId);
+  const prevFile = await queue.getPreviousMp3File(req.session.userId); // AWAIT here
   if (prevFile) {
     player.playMp3File(prevFile);
     const meta = await getMp3FileMetadataById(prevFile.id);
@@ -957,12 +996,12 @@ app.get('/play-prev', ensureAuthenticated, async (req, res) => {
 });
 
 app.post('/shuffle', ensureAuthenticated, (req, res) => {
-  const shuffledQueue = queue.shuffleQueue(req.session.userId);
+  const shuffledQueue = queue.shuffleQueue(req.session.userId); // This is now async, but not awaited here.
   res.json({ queue: shuffledQueue });
 });
 
-app.get('/queue', ensureAuthenticated, (req, res) => {
-  res.json(queue.getQueue(req.session.userId));
+app.get('/queue', ensureAuthenticated, async (req, res) => { // Made async
+  res.json(await queue.getQueue(req.session.userId)); // AWAIT here
 });
 
 app.use((err, req, res, next) => {

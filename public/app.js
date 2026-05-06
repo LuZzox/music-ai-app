@@ -195,7 +195,7 @@ function setPlayButtonState(isPlaying) {
 }
 
 function showTab(name) {
-    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue'];
+    const tabs = ['library', 'search', 'playlist', 'tracks', 'queue']; // Removed 'settings'
     tabs.forEach(tab => {
         const panel = document.getElementById(`${tab}Tab`); // Ensure 'settings' tab is included
         const button = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
@@ -261,13 +261,16 @@ function initVisualizer() {
 
 function togglePlayPause() {
     const player = document.getElementById('audioPlayer');
-    // Ensure AudioContext is resumed before playing
+    // Ensure AudioContext is resumed before playing, and handle potential errors
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume().catch(err => console.error('Failed to resume AudioContext:', err));
     }
     if (player.paused) {
         player.play().then(() => {
             setPlayButtonState(true);
+            // After playing, ensure the queue is updated if it's a single track play
+            // This might be redundant if playMp3 already calls getQueue, but safe
+            getQueue(); 
         }).catch(err => {
             console.error('Error during player.play() in togglePlayPause:', err); // More specific error logging
             setStatus(`Playback failed: ${err.message}`);
@@ -346,6 +349,15 @@ function loadOfflineData(key) {
 
 function saveOfflineUser(user) {
     if (user) {
+        // Ensure displayName is saved for offline mode
+        storeOfflineData('musica-offline-user', {
+            id: user.id,
+            email: user.email,
+            // Use displayName if available, otherwise fallback to email part
+            displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Guest')
+        });
+    } else {
+        // If user is null, clear the offline user data
         storeOfflineData('musica-offline-user', user);
     }
 }
@@ -388,7 +400,7 @@ function handleLogin() {
     const password = document.getElementById('loginPassword').value;
 
     if (!email || !password) {
-        alert('Please enter email and password');
+        setStatus('Please enter email and password'); // Changed from alert
         return;
     }
 
@@ -411,7 +423,7 @@ function handleLogin() {
         // Save the authentication token if provided
         if (user.token) {
             saveAuthToken(user.token);
-            console.log('[LOGIN] Auth method:', user.authMethod);
+            console.log('[LOGIN] Auth method:', user.authMethod, 'Token:', user.token ? 'present' : 'missing');
         }
         document.getElementById('loginEmail').value = '';
         document.getElementById('loginPassword').value = '';
@@ -422,7 +434,7 @@ function handleLogin() {
         searchAllTracks();
     })
     .catch(error => {
-        alert(`Login error: ${error.message}`);
+        setStatus(`Login error: ${error.message}`); // Changed from alert
     });
 }
 
@@ -432,7 +444,7 @@ function handleSignup() {
     const displayName = document.getElementById('signupName').value.trim() || email.split('@')[0];
 
     if (!email || !password) {
-        alert('Please enter email and password');
+        setStatus('Please enter email and password'); // Changed from alert
         return;
     }
 
@@ -455,7 +467,7 @@ function handleSignup() {
         // Save the authentication token if provided
         if (user.token) {
             saveAuthToken(user.token);
-            console.log('[SIGNUP] Auth method:', user.authMethod);
+            console.log('[SIGNUP] Auth method:', user.authMethod, 'Token:', user.token ? 'present' : 'missing');
         }
         document.getElementById('signupEmail').value = '';
         document.getElementById('signupPassword').value = '';
@@ -467,7 +479,7 @@ function handleSignup() {
         searchAllTracks();
     })
     .catch(error => {
-        alert(`Signup error: ${error.message}`);
+        setStatus(`Signup error: ${error.message}`); // Changed from alert
     });
 }
 
@@ -497,12 +509,19 @@ function showAuth() {
 function showApp() {
     document.getElementById('authPanel').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
-    if (currentUser) {
-        document.getElementById('headerUserName').textContent = currentUser.displayName || currentUser.email;
+    
+    const avatarImg = document.getElementById('headerAvatar');
+    const nameSpan = document.getElementById('headerUserName');
+
+    if (currentUser && nameSpan && avatarImg) {
+        nameSpan.textContent = currentUser.displayName || currentUser.email;
         const token = getAuthToken();
         const avatarUrl = resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '');
-        document.getElementById('headerAvatar').src = avatarUrl;
-        document.getElementById('headerAvatar').style.display = 'block';
+        
+        avatarImg.src = avatarUrl;
+        avatarImg.style.display = 'block';
+        // Hide if no image found (404)
+        avatarImg.onerror = () => { avatarImg.style.display = 'none'; };
     }
 }
 
@@ -510,7 +529,7 @@ function checkAuth() {
     loadBackendUrl(); // Load stored API_BASE before making any network requests
     fetchApi(resolveApiUrl('/auth/user'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
-        const body = await parseJsonOrText(response);
+        const body = await parseJsonOrText(response); // AWAIT here
         if (!response.ok || !body || !body.authenticated) {
             const cachedUser = loadOfflineData('musica-offline-user');
             if (cachedUser) {
@@ -518,6 +537,7 @@ function checkAuth() {
                 offlineMode = true;
                 showApp();
                 getMp3Files();
+                // getQueue() and getPlaylists() are called by showApp indirectly or will be called by other tab switches
                 getQueue();
                 getPlaylists();
                 setStatus('Offline mode: showing cached content');
@@ -529,6 +549,7 @@ function checkAuth() {
         currentUser = body.user;
         offlineMode = false;
         saveOfflineUser(body.user);
+        // showApp() will update the header with currentUser.displayName
         showApp();
         getMp3Files();
         getQueue();
@@ -541,6 +562,7 @@ function checkAuth() {
             currentUser = cachedUser;
             offlineMode = true;
             showApp();
+            // getQueue() and getPlaylists() are called by showApp indirectly or will be called by other tab switches
             getMp3Files();
             getQueue();
             getPlaylists();
@@ -577,7 +599,7 @@ async function uploadMusic() {
     const audioFiles = files.filter(file => file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3'));
 
     if (audioFiles.length === 0) {
-        alert('No valid audio files found.');
+        setStatus('No valid audio files found.'); // Changed from alert
         return;
     }
 
@@ -648,7 +670,7 @@ async function safeFetch(url, options = {}) {
     }
 }
 
-async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZE) {
+async function getMp3Files(page = currentLibraryPage, perPage = LIBRARY_PAGE_SIZE) { // Made async
     currentLibraryPage = Math.max(1, page);
     try {
         const allFiles = await safeFetch(resolveApiUrl('/mp3_files'), { cacheKey: 'musica-offline-tracks' });
@@ -721,7 +743,7 @@ function nextLibraryPage() {
     getMp3Files();
 }
 
-async function searchAllTracks(query) {
+async function searchAllTracks(query) { // Made async
     if (!currentUser || offlineMode) {
         const list = document.getElementById('searchResults');
         if (list) {
@@ -762,7 +784,7 @@ async function searchAllTracks(query) {
     }
 }
 
-async function loadAllTracks() {
+async function loadAllTracks() { // Made async
     if (!currentUser || offlineMode) {
         const list = document.getElementById('tracksResults');
         if (list) {
@@ -829,7 +851,7 @@ function renderSearchResults(data) {
     });
 }
 
-function getPlaylists() {
+async function getPlaylists() { // Made async
     safeFetch(resolveApiUrl('/playlists'), { cacheKey: 'musica-offline-playlists' })
     .then(data => {
         if (!Array.isArray(data)) {
@@ -881,7 +903,7 @@ function renderPlaylists(data) {
 function createPlaylist() {
     const name = document.getElementById('playlistName').value.trim();
     if (!name) {
-        alert('Please enter a playlist name');
+        setStatus('Please enter a playlist name'); // Changed from alert
         return;
     }
     fetchApi(resolveApiUrl('/playlists'), {
@@ -908,7 +930,7 @@ function createPlaylist() {
 
 function addTrackToPlaylist(trackId) {
     if (!currentPlaylistId) {
-        alert('Select a playlist before adding tracks');
+        setStatus('Select a playlist before adding tracks'); // Changed from alert
         return;
     }
     fetchApi(resolveApiUrl(`/playlists/${currentPlaylistId}/tracks`), {
@@ -932,7 +954,7 @@ function addTrackToPlaylist(trackId) {
     });
 }
 
-function loadPlaylistDetails(id, name) {
+async function loadPlaylistDetails(id, name) { // Made async
     currentPlaylistId = id;
     document.getElementById('currentPlaylistName').textContent = name;
     safeFetch(resolveApiUrl(`/playlists/${id}`), { cacheKey: `musica-offline-playlist-${id}` })
@@ -1035,7 +1057,7 @@ async function playPlaylist(trackIds, playlistName) {
 
 async function queueCurrentPlaylist() {
     if (!currentPlaylistId || currentLoopTrackIds.length === 0) {
-        alert('Select a playlist with tracks first');
+        setStatus('Select a playlist with tracks first'); // Changed from alert
         return;
     }
     await queueTracks(currentLoopTrackIds);
@@ -1044,7 +1066,7 @@ async function queueCurrentPlaylist() {
 
 async function playCurrentPlaylist() {
     if (!currentPlaylistId || currentLoopTrackIds.length === 0) {
-        alert('Select a playlist with tracks first');
+        setStatus('Select a playlist with tracks first'); // Changed from alert
         return;
     }
     await playPlaylist(currentLoopTrackIds, document.getElementById('currentPlaylistName').textContent || 'Playlist');
@@ -1122,7 +1144,8 @@ async function playMp3(id, options = {}) {
             setStatus(`Erreur de lecture : ${error.message}`);
             setPlayButtonState(false);
         });
-        updateNowPlaying({ title: actualTitle, subtitle: actualSubtitle, status: `Lecture de ${actualTitle}` });
+        updateNowPlaying({ title: actualTitle, subtitle: actualSubtitle, status: `Lecture de ${actualTitle}` }); // This was missing await getQueue()
+        await getQueue(); // AWAIT here to update queue display
     } catch (error) {
         console.error('Error in playMp3 function:', error); // More specific error logging
         setStatus(`Playback error: ${error.message}`);
@@ -1130,7 +1153,7 @@ async function playMp3(id, options = {}) {
     }
 }
 
-function playPrevFromQueue() {
+async function playPrevFromQueue() { // Made async
     fetchApi(resolveApiUrl('/play-prev'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
@@ -1152,7 +1175,7 @@ function playPrevFromQueue() {
 
 let loopMode = localStorage.getItem('musica-loop-mode') === 'true';
 
-function shuffleQueue() {
+async function shuffleQueue() { // Made async
     fetchApi(resolveApiUrl('/shuffle'), { method: 'POST', headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
@@ -1211,7 +1234,7 @@ async function queueTracks(ids, options = {}) {
     await getQueue();
 }
 
-function addToQueue(id) {
+async function addToQueue(id) { // Made async
     queueTrack(id)
         .then(() => getQueue())
         .catch(error => {
@@ -1219,7 +1242,7 @@ function addToQueue(id) {
         });
 }
 
-async function getQueue() {
+async function getQueue() { // Made async
     safeFetch(resolveApiUrl('/queue'), { cacheKey: 'musica-offline-queue' })
     .then(data => {
         if (!Array.isArray(data)) {
@@ -1249,7 +1272,7 @@ async function fetchQueueItems() {
     return Array.isArray(data) ? data : [];
 }
 
-function playNextFromQueue() {
+async function playNextFromQueue() { // Made async
     fetchApi(resolveApiUrl('/play-next'), { headers: { 'Accept': 'application/json' } })
     .then(async response => {
         const body = await parseJsonOrText(response);
@@ -1315,7 +1338,7 @@ async function handleTrackEnd() {
                 setStatus('Loop disabled - single track finished');
                 updateLoopButton();
                 return;
-            }
+            } // Removed redundant else block
             console.log('Re-queuing entire playlist for loop:', currentLoopTrackIds);
             await queueTracks(currentLoopTrackIds, { silent: true }); // Re-queue the entire playlist
             // After re-queuing, playNextFromQueue will pick up the first track of the re-queued list
@@ -1388,6 +1411,12 @@ window.onload = () => {
             menu.style.top = `${e.pageY}px`;
         };
     }
+    // Close context menu if clicking anywhere else
+    window.addEventListener('click', (e) => {
+        if (menu && menu.style.display === 'block' && !avatar.contains(e.target) && !menu.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+    });
     window.onclick = () => { if(menu) menu.style.display = 'none'; };
 
     updateLoopButton();
