@@ -465,6 +465,7 @@ app.post('/signup', async (req, res) => {
           id: userId,
           email: newUser.email,
           displayName: newUser.displayName,
+          hasPicture: !!newUser.profilePicture,
           token: token,
           authMethod: 'token-fallback'
         });
@@ -474,6 +475,7 @@ app.post('/signup', async (req, res) => {
         id: userId,
         email: newUser.email,
         displayName: newUser.displayName,
+        hasPicture: !!newUser.profilePicture,
         token: token,
         authMethod: 'session'
       });
@@ -511,6 +513,7 @@ app.post('/login', async (req, res) => {
           id: user.id,
           email: user.email,
           displayName: user.displayName,
+          hasPicture: !!user.profilePicture,
           token: token,
           authMethod: 'token-fallback'
         });
@@ -520,6 +523,7 @@ app.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        hasPicture: !!user.profilePicture,
         token: token,
         authMethod: 'session'
       });
@@ -553,9 +557,9 @@ app.post('/user/profile', ensureAuthenticated, upload.single('avatar'), async (r
     await fs.unlink(req.file.path);
   }
   try {
-    const user = await User.findByIdAndUpdate(req.session.userId, updateData, { new: true });
+    const user = await User.findByIdAndUpdate(req.session.userId, updateData, { new: true }).select('email displayName profilePicture');
     req.session.displayName = user.displayName;
-    res.json({ success: true, user: { id: user._id, email: user.email, displayName: user.displayName } });
+    res.json({ success: true, user: { id: user._id, email: user.email, displayName: user.displayName, hasPicture: !!user.profilePicture } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -571,8 +575,8 @@ app.get('/user/avatar', ensureAuthenticated, async (req, res) => { // Made async
 app.get('/auth/user', async (req, res) => { // Made async
   // Check session first
   if (req.session && req.session.userId) {
-    const user = await User.findById(req.session.userId).select('displayName email');
-    return res.json({ authenticated: true, user: { id: req.session.userId, email: user.email, displayName: user.displayName } });
+    const user = await User.findById(req.session.userId).select('displayName email profilePicture');
+    return res.json({ authenticated: true, user: { id: req.session.userId, email: user.email, displayName: user.displayName, hasPicture: !!user.profilePicture } });
   }
   
   // Check token as fallback
@@ -583,8 +587,8 @@ app.get('/auth/user', async (req, res) => { // Made async
     const tokenData = await validateToken(token); // AWAIT here
     if (tokenData) {
       console.log('[AUTH/USER] ✓ Token authenticated:', tokenData.email);
-      const user = await User.findById(tokenData.userId).select('displayName email');
-      return res.json({ authenticated: true, user: { id: tokenData.userId, email: user.email, displayName: user.displayName } });
+      const user = await User.findById(tokenData.userId).select('displayName email profilePicture');
+      return res.json({ authenticated: true, user: { id: tokenData.userId, email: user.email, displayName: user.displayName, hasPicture: !!user.profilePicture } });
     }
   }
   

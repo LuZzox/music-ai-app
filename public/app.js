@@ -354,7 +354,8 @@ function saveOfflineUser(user) {
             id: user.id,
             email: user.email,
             // Use displayName if available, otherwise fallback to email part
-            displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Guest')
+            displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Guest'),
+            hasPicture: !!user.hasPicture
         });
     } else {
         // If user is null, clear the offline user data
@@ -510,18 +511,16 @@ function showApp() {
     document.getElementById('authPanel').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
     
-    const avatarImg = document.getElementById('headerAvatar');
+    const avatarBox = document.getElementById('headerAvatar');
     const nameSpan = document.getElementById('headerUserName');
 
-    if (currentUser && nameSpan && avatarImg) {
-        nameSpan.textContent = currentUser.displayName || currentUser.email;
+    if (currentUser && nameSpan && avatarBox) {
+        const name = currentUser.displayName || currentUser.email;
+        nameSpan.textContent = name;
         const token = getAuthToken();
-        const avatarUrl = resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '');
-        
-        avatarImg.src = avatarUrl;
-        avatarImg.style.display = 'block';
-        // Hide if no image found (404)
-        avatarImg.onerror = () => { avatarImg.style.display = 'none'; };
+        const avatarUrl = currentUser.hasPicture ? resolveApiUrl('/user/avatar') + '?t=' + Date.now() + (token ? '&token=' + token : '') : null;
+        applyCoverToElement(avatarBox, name, avatarUrl);
+        avatarBox.style.display = 'grid';
     }
 }
 
@@ -1423,6 +1422,13 @@ window.onload = () => {
     showTab('library');
     checkAuth();
 };
+
+function openSettings() {
+    document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings() {
+    document.getElementById('settingsModal').classList.remove('active');
+}
 
 function openSettings() {
     document.getElementById('settingsModal').classList.add('active');
