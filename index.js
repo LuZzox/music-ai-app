@@ -358,9 +358,6 @@ async function validateToken(token) {
     await AuthToken.deleteOne({ _id: authToken._id });
     return null;
   }
-  // Update expiry on use to extend session
-  authToken.expiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000));
-  await authToken.save();
   return { userId: authToken.userId, email: authToken.email };
 }
 
@@ -744,10 +741,12 @@ app.get('/play/:id', ensureAuthenticated, async (req, res) => {
     const range = req.headers.range;
 
     res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `inline; filename="${row.fileName}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${row.fileName.replace(/"/g, "'")}"`);
     res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (req.headers.origin) {
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
 
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -797,7 +796,7 @@ app.get('/search', ensureAuthenticated, async (req, res) => {
       fileName: row.fileName,
       uploaderName: row.uploaderName,
       createdAt: row.createdAt,
-      owned: row.userId === req.session.userId
+      owned: row.userId.toString() === req.session.userId.toString()
     })));
 
   } catch (err) {
@@ -886,7 +885,7 @@ app.get('/playlists/:id', ensureAuthenticated, async (req, res) => {
         fileName: row.fileName,
         uploaderName: row.uploaderName,
         createdAt: row.createdAt,
-        owned: row.userId === req.session.userId
+        owned: row.userId.toString() === req.session.userId.toString()
       }))
     });
   } catch (err) {

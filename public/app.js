@@ -93,7 +93,7 @@ function renderTrackItem(mp3, options = {}) {
 
     const thumb = document.createElement('div');
     thumb.className = 'track-thumb';
-    applyCoverToElement(thumb, trackTitle, mp3.coverUrl);
+    applyCoverToElement(thumb, trackTitle, mp3.coverUrl ? resolveApiUrl(mp3.coverUrl) : null);
 
     const meta = document.createElement('div');
     meta.className = 'track-meta';
@@ -320,6 +320,8 @@ async function loadAudioSource(url) {
     // This allows the browser to buffer and start playing almost immediately.
     const token = getAuthToken();
     const authenticatedUrl = token ? `${url}${url.includes('?') ? '&' : '?'}token=${token}` : url;
+    
+    player.src = ''; // Clear existing source
     player.pause();
     player.removeAttribute('src'); // Force clean state
     player.src = authenticatedUrl;
