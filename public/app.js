@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE = 'https://music-ai-app.onrender.com';
+const DEFAULT_API_BASE = 'https://musica-pi.your-domain.com';
 let API_BASE = DEFAULT_API_BASE;
 let currentUser = null;
 let offlineMode = false;

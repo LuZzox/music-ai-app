@@ -9,7 +9,7 @@ cd /d C:\Users\sharl\Desktop\music-ai-app
 echo.
 echo ========================================
 echo   Building musica APK
-echo   (Using Render backend)
+echo   (Using Raspberry Pi backend)
 echo ========================================
 echo.
 
@@ -58,7 +58,7 @@ if exist "android\app\build\outputs\apk\debug\app-debug.apk" (
     echo APK Ready: android\app\build\outputs\apk\debug\app-debug.apk
     echo.
     echo App Name: musica
-    echo Backend: https://music-ai-app.onrender.com
+    echo Backend: https://musica-pi.your-domain.com
     echo Theme: GREEN
     echo.
     echo Next steps:

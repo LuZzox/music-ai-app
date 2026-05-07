@@ -4,7 +4,7 @@
 
 - ✓ App name: **musica** (was Musicify)
 - ✓ Theme: **GREEN** throughout
-- ✓ Backend: **Render** (https://music-ai-app.onrender.com)
+- ✓ Backend: **Raspberry Pi** (https://musica-pi.your-domain.com)
 - ✓ CSS: Fully synchronized and organized
 - ✓ New branding colors applied
 

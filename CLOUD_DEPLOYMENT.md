@@ -1,23 +1,37 @@
 # Cloud Deployment Guide
 
-## Option 1: Render.com (Recommended)
+## Option 1: Raspberry Pi (Home Server - Recommended)
 
-1. **Push to GitHub**: Commit and push your code to a GitHub repository
-2. **Create Render Account**: Go to [render.com](https://render.com) and sign up
-3. **Create New Web Service**:
-   - Connect your GitHub repository
-   - Set root directory to repository root
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-4. **Environment Variables**:
-   - `SESSION_SECRET`: Generate a random string (Render will auto-generate one)
-5. **Deploy**: Click "Create Web Service"
+Hosting on a Pi is the most stable free method.
 
-Your app will be available at: `https://your-service-name.onrender.com`
+1. **Install Node.js**: `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs`
+2. **Transfer Files**: Use Git or SCP to move your project to `/home/pi/music-ai-app`.
+3. **Setup Environment**:
+   - Create a `.env` file on the Pi.
+   - Add `MONGODB_URI` and `SESSION_SECRET`.
+4. **Install & Run**: 
+   - `npm install`
+   - `sudo npm install -g pm2`
+   - `pm2 start index.js --name musica` (This keeps the app running forever).
+5. **Expose to Internet**:
+   - Use **Cloudflare Tunnel** (cloudflared) for a permanent, secure URL.
 
-## Option 2: Railway
+## Option 2: Local Tunnel (PC)
 
-1. **Create Railway Account**: Go to [railway.app](https://railway.app)
+If you don't want to pay for a server, you can host it on your own PC and make it public:
+
+1. **Start your server**: Run `npm start`.
+2. **Install Localtunnel**: Open a new terminal and run `npm install -g localtunnel`.
+3. **Start the tunnel**: Run `lt --port 3000 --subdomain your-unique-name`.
+4. **Update App**: Put `https://your-unique-name.loca.lt` into your app's Backend URL.
+
+*Note: Your PC must be on for the app to work.*
+
+## Option 2: Render.com
+
+1. **Push to GitHub**: Commit and push your code.
+2. **Create Web Service**: Connect your repo.
+3. **Limits**: Free, but "sleeps" after 15 minutes and is slow to wake up.
 2. **Create New Project**: Connect your GitHub repository
 3. **Set Start Command**: `npm start`
 4. **Add Environment Variable**: `SESSION_SECRET=your-random-string`
